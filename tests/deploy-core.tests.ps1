@@ -40,4 +40,16 @@ Describe 'deploy-core DryRun 全链路' {
         $r.error | Should Be $null
         $r.meta.parameters.site_title | Should Be '我的站'
     }
+    It '-ListHistory 返回历史数组（蓝图 §4.2 数据层）' {
+        $r = Invoke-DeployCli -ExtraArgs @('-ListHistory')
+        $r.error | Should Be $null
+        $null -ne $r.history | Should Be $true
+    }
+    It 'DryRun 不写部署历史（无副作用）' {
+        $before = @(Read-DeployHistory).Count
+        $r = Invoke-DeployCli -ExtraArgs @('-TemplateId', 'plain', '-DryRun')
+        $r.error | Should Be $null
+        $after = @(Read-DeployHistory).Count
+        $after | Should Be $before
+    }
 }

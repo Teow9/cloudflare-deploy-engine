@@ -18,28 +18,36 @@ param(
 
 try {
     if (-not $ConfigPath) { $ConfigPath = (Join-Path (Get-DataDir) 'config.enc.json') }
-    $cfg = Get-AppConfig -Path $ConfigPath
-    if (-not $Project) { $Project = $cfg.settings.pagesProject }
-    if (-not $Project) { throw '未指定 -Project，且配置中没有记录项目名' }
+    Lock-Deploy
+    $logStamp = New-Stamp
+    $logFile = Join-Path (Join-Path (Get-DataDir) 'logs') ("destroy-$logStamp.log")
+    Set-ActiveLogFile -Path $logFile
+    try {
+        $cfg = Get-AppConfig -Path $ConfigPath
+        if (-not $Project) { $Project = $cfg.settings.pagesProject }
+        if (-not $Project) { throw '未指定 -Project，且配置中没有记录项目名' }
 
-    if (-not $Force -and -not $DryRun) {
-        $ans = Read-Host "确认删除 Pages 项目 '$Project' ？输入 yes 继续"
-        if ($ans -ne 'yes') { Write-Result @{ action = 'cancelled'; project = $Project }; exit 0 }
-    }
+        if (-not $Force -and -not $DryRun) {
+            $ans = Read-Host "确认删除 Pages 项目 '$Project' ？输入 yes 继续"
+            if ($ans -ne 'yes') { Write-Result @{ action = 'cancelled'; project = $Project }; exit 0 }
+        }
 
-    $result = Invoke-Plugin -Axis 'targets' -Id 'pages' -PluginArgs @{
-        ConfigPath = $ConfigPath
-        Project    = $Project
-        DryRun     = [bool]$DryRun
-        Action     = 'delete'
-    }
+        $result = Invoke-Plugin -Axis 'targets' -Id 'pages' -PluginArgs @{
+            ConfigPath = $ConfigPath
+            Project    = $Project
+            DryRun     = [bool]$DryRun
+            Action     = 'delete'
+        }
 
-    if (-not $DryRun) {
-        # 项目已删除，清除记忆的项目名，避免后续误用
-        $cfg.settings.pagesProject = ''
-        Save-AppConfig -Path $ConfigPath -Config $cfg
+        if (-not $DryRun) {
+            # 项目已删除，清除记忆的项目名，避免后续误用
+            $cfg.settings.pagesProject = ''
+            Save-AppConfig -Path $ConfigPath -Config $cfg
+        }
+        Write-Result $result
+    } finally {
+        Unlock-Deploy
     }
-    Write-Result $result
 } catch {
     Write-LogLine -Level ERROR -Message $_.Exception.Message
     Write-Result @{ error = $_.Exception.Message }

@@ -13,6 +13,12 @@ function Get-EngineRoot {
 }
 
 function Get-DataDir {
+    # 单测/调试钩子：CDE_DATA_DIR 环境变量重定向数据目录（同 CDE_API_BASE 先例）
+    if ($env:CDE_DATA_DIR) {
+        $dir = $env:CDE_DATA_DIR
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        return $dir
+    }
     $dir = Join-Path (Get-EngineRoot) 'data'
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     return $dir
@@ -22,6 +28,19 @@ function Get-CacheDir {
     $dir = Join-Path (Get-DataDir) 'cache'
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     return $dir
+}
+
+function Clear-StaleCache {
+    # 缓存清理：删除 N 天前的展开产物与 wrangler 日志（默认 1 天，防 data/ 堆积）
+    param([int]$Days = 1)
+    $cache = Get-CacheDir
+    $cutoff = (Get-Date).AddDays(-$Days)
+    @(Get-ChildItem -LiteralPath $cache -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt $cutoff }) |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    @(Get-ChildItem -LiteralPath $cache -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt $cutoff }) |
+        Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 function New-Stamp {
@@ -57,7 +76,23 @@ function Invoke-Curl {
 
 function Write-LogLine {
     param([ValidateSet('INFO','WARN','ERROR','DEBUG')][string]$Level = 'INFO', [Parameter(Mandatory = $true)][string]$Message)
-    [Console]::Out.WriteLine(('LOG|{0}|{1}|{2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message))
+    $line = ('LOG|{0}|{1}|{2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message)
+    [Console]::Out.WriteLine($line)
+    # 日志落盘（蓝图 §4.2 data/logs/）：Set-ActiveLogFile 激活后追加写
+    if ($script:ActiveLogFile) {
+        try { [System.IO.File]::AppendAllText($script:ActiveLogFile, ($line + "`r`n"), [System.Text.Encoding]::UTF8) } catch { }
+    }
+}
+
+function Set-ActiveLogFile {
+    # 激活日志文件（部署/销毁入口调用；-Path '' 关闭）
+    param([string]$Path = '')
+    $script:ActiveLogFile = $Path
+    if ($Path) {
+        $dir = Split-Path -Parent $Path
+        if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        try { [System.IO.File]::AppendAllText($Path, "==== CDE 会话 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ====`r`n", [System.Text.Encoding]::UTF8) } catch { }
+    }
 }
 
 function Write-Result {
@@ -182,6 +217,100 @@ function New-TempJsonFile {
     $file = Join-Path $env:TEMP ("cde-body-" + [guid]::NewGuid().ToString('N') + '.json')
     Write-Utf8File -Path $file -Text $Json
     return $file
+}
+
+# ---------------- 部署历史（蓝图 §4.2 deploy-history.json，明文） ----------------
+function Get-HistoryPath {
+    return (Join-Path (Get-DataDir) 'deploy-history.json')
+}
+
+function Read-DeployHistory {
+    # 读取部署历史（-Limit 0 = 全部；最新在后）
+    # 注意：PS 5.1 中 @(管道 | ConvertFrom-Json) 会把输出包成单元素（解析器怪癖），
+    #       必须先赋值再 @() 包装
+    param([int]$Limit = 50)
+    $p = Get-HistoryPath
+    if (-not (Test-Path -LiteralPath $p)) { return @() }
+    try {
+        $parsed = Get-Content -LiteralPath $p -Raw -Encoding UTF8 | ConvertFrom-Json
+        $arr = @($parsed)
+    } catch {
+        Write-LogLine -Level WARN -Message "部署历史文件损坏，按空处理：$p"
+        return @()
+    }
+    if ($Limit -gt 0 -and $arr.Count -gt $Limit) { $arr = @($arr | Select-Object -Last $Limit) }
+    return $arr
+}
+
+function Add-DeployHistory {
+    # 追加一条部署记录（上限 50 条，超出丢最旧）
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [string]$Source = '',
+        [string]$Template = '',
+        [hashtable]$Parameters = @{},
+        [string]$Url = '',
+        [ValidateSet('ok', 'failed', 'cancelled')][string]$Status = 'ok',
+        [bool]$ServingOk = $false,
+        [int]$Attempts = 0,
+        [string]$Backend = '',
+        [string]$DeploymentId = '',
+        [string]$LogFile = ''
+    )
+    $MaxKeep = 50
+    $rec = [PSCustomObject]@{
+        timestamp    = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        project      = $Project
+        source       = $Source
+        template     = $Template
+        parameters   = $Parameters
+        url          = $Url
+        status       = $Status
+        servingOk    = [bool]$ServingOk
+        attempts     = $Attempts
+        backend      = $Backend
+        deploymentId = $DeploymentId
+        logFile      = $LogFile
+    }
+    $all = @(Read-DeployHistory -Limit 0)
+    $all += $rec
+    if ($all.Count -gt $MaxKeep) { $all = @($all | Select-Object -Skip ($all.Count - $MaxKeep)) }
+    Write-Utf8File -Path (Get-HistoryPath) -Text ($all | ConvertTo-Json -Depth 8)
+    return $rec
+}
+
+# ---------------- 部署运行锁（计划 §2.2：并发互斥 + 死锁自愈） ----------------
+function Lock-Deploy {
+    # 加锁：data/.deploy.lock（JSON {pid,started}）；锁内 PID 已退出 → 视为过期自动接管
+    $lockPath = Join-Path (Get-DataDir) '.deploy.lock'
+    if (Test-Path -LiteralPath $lockPath) {
+        $info = $null
+        try { $info = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
+        $pidAlive = $false
+        if ($info -and $info.pid) {
+            $proc = Get-Process -Id ([int]$info.pid) -ErrorAction SilentlyContinue
+            $pidAlive = ($null -ne $proc)
+        }
+        if ($pidAlive) {
+            throw ("已有部署任务进行中（PID {0}，起始 {1}）。请等待完成，或手动结束对应进程后重试。" -f $info.pid, $info.started)
+        }
+        Write-LogLine -Level WARN -Message ("发现过期部署锁（PID {0} 已不存在），自动接管" -f $(if ($info.pid) { $info.pid } else { '未知' }))
+    }
+    $body = @{ pid = $PID; started = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') } | ConvertTo-Json -Compress
+    Write-Utf8File -Path $lockPath -Text $body
+}
+
+function Unlock-Deploy {
+    # 释放锁（仅当锁属于当前进程；异常时强制清理）
+    $lockPath = Join-Path (Get-DataDir) '.deploy.lock'
+    if (-not (Test-Path -LiteralPath $lockPath)) { return }
+    try {
+        $info = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($info.pid -eq $PID) { Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue }
+    } catch {
+        Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
+        Write-LogLine -Level WARN -Message '部署锁内容异常，已强制清理'
+    }
 }
 
 # ---------------- 随机工具 ----------------

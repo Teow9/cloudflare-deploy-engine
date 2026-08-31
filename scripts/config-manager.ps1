@@ -20,7 +20,7 @@ function Get-DefaultConfigPath {
 function New-DefaultConfig {
     return [PSCustomObject]@{
         version  = 1
-        settings = [PSCustomObject]@{ pagesProject = ''; lastTemplate = '' }
+        settings = [PSCustomObject]@{ pagesProject = ''; lastTemplate = ''; lastTemplateParams = @{} }
         secrets  = [PSCustomObject]@{ accountId = ''; apiToken = ''; email = '' }
         ai       = [PSCustomObject]@{ baseUrl = ''; model = ''; apiKey = '' }
     }

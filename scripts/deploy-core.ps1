@@ -21,7 +21,8 @@ param(
     [ValidateSet('native', 'wrangler')][string]$Backend = 'native',
     [switch]$DryRun,
     [switch]$ListPlugins,
-    [switch]$ListTemplates
+    [switch]$ListTemplates,
+    [switch]$ListHistory
 )
 
 . (Join-Path $PSScriptRoot 'utils.ps1')
@@ -88,9 +89,14 @@ function Invoke-Deploy {
     $project = Resolve-DeployProject -ProjectArg $Project -Config $cfg -DerivedName $derived
     Write-LogLine -Level INFO -Message "目标项目：$project"
 
-    # ---- 3. 持久化项目名（下次复用同一项目） ----
+    # ---- 3. 持久化项目名 + 模板参数记忆（蓝图 §4.4 明文分区） ----
     if ($cfg.settings.pagesProject -ne $project) {
         $cfg.settings.pagesProject = $project
+        Save-AppConfig -Path $ConfigPath -Config $cfg
+    }
+    if ($TemplateId -and -not $DryRun) {
+        $cfg.settings.lastTemplate = $TemplateId
+        $cfg.settings.lastTemplateParams = $merged
         Save-AppConfig -Path $ConfigPath -Config $cfg
     }
 
@@ -134,7 +140,38 @@ try {
         Write-Result @{ templates = @(Get-TemplateList) }
         exit 0
     }
-    Write-Result (Invoke-Deploy)
+    if ($ListHistory) {
+        Write-Result @{ history = @(Read-DeployHistory) }
+        exit 0
+    }
+
+    # ---- 运行锁 + 日志落盘 + 部署历史（蓝图 §4.2） ----
+    Lock-Deploy
+    Clear-StaleCache
+    $logStamp = New-Stamp
+    $logDir = Join-Path (Get-DataDir) 'logs'
+    $logFile = Join-Path $logDir ("deploy-$logStamp.log")
+    Set-ActiveLogFile -Path $logFile
+    $historyProject = ''
+    try {
+        $result = Invoke-Deploy
+        $historyProject = $result.project
+        if (-not $DryRun) {
+            $m = $result.meta
+            Add-DeployHistory -Project $result.project -Source $m.source -Template $m.template `
+                -Parameters $m.parameters -Url $result.url -Status 'ok' `
+                -ServingOk ([bool]$result.servingOk) -Attempts ([int]$result.attempts) `
+                -Backend $result.backend -DeploymentId $result.deploymentId -LogFile $logFile
+        }
+        Write-Result $result
+    } catch {
+        if (-not $DryRun) {
+            Add-DeployHistory -Project $historyProject -Status 'failed' -LogFile $logFile
+        }
+        throw
+    } finally {
+        Unlock-Deploy
+    }
 } catch {
     Write-LogLine -Level ERROR -Message $_.Exception.Message
     Write-Result @{ error = $_.Exception.Message }

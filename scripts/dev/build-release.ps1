@@ -35,6 +35,9 @@ if (-not $SkipTests) {
     Write-Host '（-SkipTests：跳过测试门禁）'
 }
 
+# 模板完整性为发布硬门禁（ADR-002），-SkipTests 时仍执行
+Assert-Gate '④ 模板完整性（check-build-integrity）' { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'templates\check-build-integrity.ps1') }
+
 # ---------- 1. 客户端库自愈（js/neutralino.js） ----------
 # 官方来源：neu update 从 GitHub Release 下载；网络不可达时从 @neutralinojs/lib 包复制
 $clientLib = Join-Path $Root 'js\neutralino.js'

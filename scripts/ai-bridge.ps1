@@ -52,12 +52,25 @@ function Invoke-AiSuggest {
     if ($metas.Count -eq 0) { throw '没有可用模板（plugins.json templates 为空）' }
 
     $system = New-SystemPrompt -TemplateMetas $metas
-    $raw = Invoke-Plugin -Axis 'ai' -Id 'openai-compatible' -PluginArgs @{
-        BaseUrl      = $cfg.ai.baseUrl
-        ApiKey       = $cfg.ai.apiKey
-        Model        = $cfg.ai.model
-        SystemPrompt = $system
-        UserPrompt   = $Request
+    # A6：AI 调用失败重试一次（2s），再失败降级手填（由 UI 承接）
+    $raw = $null
+    $aiAttempt = 0
+    while ($aiAttempt -lt 2) {
+        $aiAttempt++
+        try {
+            $raw = Invoke-Plugin -Axis 'ai' -Id 'openai-compatible' -PluginArgs @{
+                BaseUrl      = $cfg.ai.baseUrl
+                ApiKey       = $cfg.ai.apiKey
+                Model        = $cfg.ai.model
+                SystemPrompt = $system
+                UserPrompt   = $Request
+            }
+            break
+        } catch {
+            if ($aiAttempt -ge 2) { throw }
+            Write-LogLine -Level WARN -Message ("AI 调用失败（{0}），2 秒后重试" -f $_.Exception.Message)
+            Start-Sleep -Seconds 2
+        }
     }
 
     # ---- 容错解析：剥离代码围栏后转 JSON ----
