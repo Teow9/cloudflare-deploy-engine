@@ -46,7 +46,20 @@ const I18N = {
     running: '运行中…（可取消）',
     done: '完成',
     failed: '失败',
-    cancelled: '已取消'
+    cancelled: '已取消',
+    btnMarket: '🧩 插件市场',
+    marketTitle: '🧩 插件市场',
+    marketUrlLabel: '市场清单 URL（JSON）',
+    btnLoadMarket: '加载',
+    btnSaveMarketUrl: '保存 URL',
+    marketSearchPh: 'id / 名称 / 描述关键词',
+    marketInstalled: '已安装',
+    marketInstall: '安装',
+    marketUninstall: '卸载',
+    marketBuiltin: '内置',
+    marketEmpty: '（无匹配插件）',
+    marketLoading: '加载中…',
+    marketNoInstalled: '（无已安装的第三方插件）'
   },
   en: {
     brand: '⚡ Cloudflare Deploy Engine',
@@ -89,7 +102,20 @@ const I18N = {
     running: 'Running… (cancel available)',
     done: 'Done',
     failed: 'Failed',
-    cancelled: 'Cancelled'
+    cancelled: 'Cancelled',
+    btnMarket: '🧩 Plugin Market',
+    marketTitle: '🧩 Plugin Market',
+    marketUrlLabel: 'Market manifest URL (JSON)',
+    btnLoadMarket: 'Load',
+    btnSaveMarketUrl: 'Save URL',
+    marketSearchPh: 'id / name / description',
+    marketInstalled: 'Installed',
+    marketInstall: 'Install',
+    marketUninstall: 'Uninstall',
+    marketBuiltin: 'Built-in',
+    marketEmpty: '(no matching plugins)',
+    marketLoading: 'Loading…',
+    marketNoInstalled: '(no third-party plugins installed)'
   }
 };
 

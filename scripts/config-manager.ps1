@@ -20,7 +20,7 @@ function Get-DefaultConfigPath {
 function New-DefaultConfig {
     return [PSCustomObject]@{
         version  = 1
-        settings = [PSCustomObject]@{ pagesProject = ''; lastTemplate = ''; lastTemplateParams = @{} }
+        settings = [PSCustomObject]@{ pagesProject = ''; lastTemplate = ''; lastTemplateParams = @{}; marketUrl = '' }
         secrets  = [PSCustomObject]@{ accountId = ''; apiToken = ''; email = '' }
         ai       = [PSCustomObject]@{ baseUrl = ''; model = ''; apiKey = '' }
     }
@@ -83,10 +83,10 @@ function Save-AppConfig {
 }
 
 function Set-SecretField {
-    # 便捷更新：-Field accountId|apiToken|email|aiApiKey|aiBaseUrl|aiModel
+    # 便捷更新：-Field accountId|apiToken|email|aiApiKey|aiBaseUrl|aiModel|marketUrl
     param(
         [string]$Path = '',
-        [Parameter(Mandatory = $true)][ValidateSet('accountId', 'apiToken', 'email', 'aiApiKey', 'aiBaseUrl', 'aiModel')][string]$Field,
+        [Parameter(Mandatory = $true)][ValidateSet('accountId', 'apiToken', 'email', 'aiApiKey', 'aiBaseUrl', 'aiModel', 'marketUrl')][string]$Field,
         [string]$Value = ''
     )
     $cfg = Get-AppConfig -Path $Path -Create
@@ -97,6 +97,7 @@ function Set-SecretField {
         'aiApiKey'  { $cfg.ai.apiKey = $Value }
         'aiBaseUrl' { $cfg.ai.baseUrl = $Value }
         'aiModel'   { $cfg.ai.model = $Value }
+        'marketUrl' { $cfg.settings.marketUrl = $Value }
     }
     Save-AppConfig -Path $cfg.Path -Config $cfg
     return $cfg

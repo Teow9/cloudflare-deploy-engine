@@ -17,6 +17,8 @@ let plugins = [];            // ListPlugins：{axis,axisKey,id,enabled}
 let configState = null;      // config-manager get 的结果
 let aiState = { baseUrl: '', model: '', apiKey: '' };
 let historyCache = [];       // ListHistory：旧→新
+let marketCache = { source: '', plugins: [] };
+const BUILTIN_PLUGINS = ['local', 'github', 'gitlab', 'zip', 'plain', 'astro-site', 'openai-compatible', 'pages'];
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -696,6 +698,134 @@ function openTokenGuide() {
     null, '我知道了');
 }
 
+// ---------- 插件市场（B1） ----------
+function wireMarket() {
+  $('btnMarket').onclick = openMarket;
+}
+
+async function openMarket() {
+  const savedUrl = (configState && configState.settings) ? (configState.settings.marketUrl || '') : '';
+  openModal('🧩 插件市场',
+    '<label>市场清单 URL（JSON）' +
+    '<span class="src-browse"><input id="marketUrl" value="' + esc(savedUrl) +
+    '" placeholder="https://…/market.json 或本地路径">' +
+    '<button id="btnLoadMarket" class="tiny">' + t('btnLoadMarket') + '</button>' +
+    '<button id="btnSaveMarketUrl" class="tiny">' + t('btnSaveMarketUrl') + '</button></span></label>' +
+    '<label>搜索 <input id="marketSearch" placeholder="' + t('marketSearchPh') + '"></label>' +
+    '<div id="marketList" class="history" style="max-height:30vh">' + t('marketLoading') + '…</div>' +
+    '<p class="hint" style="margin-top:10px"><b>' + t('marketInstalled') + '</b></p>' +
+    '<div id="marketInstalled" class="history" style="max-height:16vh">' + t('marketNoInstalled') + '</div>',
+    null, t('modalOk'));
+  $('btnLoadMarket').onclick = () => loadMarket($('marketUrl').value.trim());
+  $('btnSaveMarketUrl').onclick = async () => {
+    const v = $('marketUrl').value.trim();
+    await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', 'marketUrl', '-ValueB64', b64u8(v)]);
+    configState = null;
+    appendLog('LOG|---|INFO|市场 URL 已保存');
+    alert('✓ 已保存');
+  };
+  $('marketSearch').oninput = () => renderMarket($('marketSearch').value.trim());
+  renderInstalled();
+  await loadMarket(savedUrl);
+}
+
+async function loadMarket(url) {
+  const list = $('marketList');
+  list.textContent = t('marketLoading') + '…';
+  const args = ['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'registry'];
+  if (url) args.push('-MarketUrl', url);
+  const r = await runEngine(args);
+  if (!r || r.error) { list.textContent = '加载失败：' + (r ? r.error : t('marketEmpty')); return; }
+  marketCache = { source: r.source, plugins: r.plugins || [] };
+  renderMarket($('marketSearch').value.trim());
+}
+
+function renderMarket(kw) {
+  const list = $('marketList');
+  if (!list) return;
+  list.innerHTML = '';
+  const installedIds = new Set(plugins.map((p) => p.id));
+  const kwl = (kw || '').toLowerCase();
+  const hits = marketCache.plugins.filter((p) => !kwl ||
+    (String(p.id) + ' ' + String(p.name || '') + ' ' + String(p.description || '')).toLowerCase().indexOf(kwl) >= 0);
+  if (!hits.length) { list.textContent = t('marketEmpty'); return; }
+  for (const p of hits) {
+    const isInst = installedIds.has(p.id);
+    const row = document.createElement('div');
+    row.className = 'hist-row';
+    const info = document.createElement('span');
+    info.className = 'hist-main';
+    info.innerHTML = '<b>' + esc(p.name || p.id) + '</b> <span class="hint">' +
+      esc(p.axis + '/' + p.id + ' v' + (p.version || '?')) + '</span><br>' + esc(p.description || '');
+    const act = document.createElement('span');
+    act.className = 'hist-actions';
+    const btn = document.createElement('button');
+    btn.className = 'tiny' + (isInst ? ' danger' : '');
+    btn.textContent = isInst ? t('marketInstalled') : t('marketInstall');
+    btn.disabled = isInst;
+    if (!isInst) {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'install', '-Axis', p.axis, '-Id', p.id, '-MarketUrl', marketCache.source]);
+        if (r && r.error) { alert('安装失败：' + r.error); btn.disabled = false; }
+        else {
+          appendLog('LOG|---|INFO|市场安装成功：' + p.axis + '/' + p.id);
+          await reloadPlugins();
+          renderMarket($('marketSearch').value.trim());
+          renderInstalled();
+        }
+      };
+    }
+    act.appendChild(btn);
+    row.appendChild(info);
+    row.appendChild(act);
+    list.appendChild(row);
+  }
+}
+
+function renderInstalled() {
+  const box = $('marketInstalled');
+  if (!box) return;
+  box.innerHTML = '';
+  const third = plugins.filter((p) => BUILTIN_PLUGINS.indexOf(p.id) < 0);
+  if (!third.length) { box.textContent = t('marketNoInstalled'); return; }
+  for (const p of third) {
+    const row = document.createElement('div');
+    row.className = 'hist-row';
+    const info = document.createElement('span');
+    info.className = 'hist-main';
+    info.innerHTML = '<b>' + esc(p.id) + '</b> <span class="hint">' + esc(p.axisKey + '/' + (p.enabled ? '启用' : '禁用')) + '</span>';
+    const act = document.createElement('span');
+    act.className = 'hist-actions';
+    const btn = document.createElement('button');
+    btn.className = 'tiny danger';
+    btn.textContent = t('marketUninstall');
+    btn.onclick = async () => {
+      if (!confirm('卸载插件「' + p.id + '」？将删除文件并注销注册。')) return;
+      const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'uninstall', '-Id', p.id]);
+      if (r && r.error) alert('卸载失败：' + r.error);
+      else {
+        appendLog('LOG|---|INFO|已卸载：' + p.id);
+        await reloadPlugins();
+        renderMarket($('marketSearch').value.trim());
+        renderInstalled();
+      }
+    };
+    act.appendChild(btn);
+    row.appendChild(info);
+    row.appendChild(act);
+    box.appendChild(row);
+  }
+}
+
+async function reloadPlugins() {
+  const r = await runEngine(['deploy-core.ps1', '-ListPlugins']);
+  if (r && !r.error) {
+    plugins = r.plugins || [];
+    populateSourceSelect();
+  }
+}
+
 // ---------- 通用模态 ----------
 let modalOkHandler = null;
 
@@ -763,6 +893,7 @@ async function init() {
   $('btnRefreshHistory').onclick = loadHistory;
   $('langSel').value = curLang;
   $('langSel').onchange = () => setLang($('langSel').value);
+  wireMarket();
 
   $('modalOk').onclick = async () => {
     if (modalOkHandler) await modalOkHandler($('modalOk'));
