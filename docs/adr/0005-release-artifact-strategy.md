@@ -1,7 +1,7 @@
 # ADR-005: 发布物策略（单文件 exe + zip + SHA256）
 
 **Status**: accepted
-**日期**: 2026-02
+**日期**: 2026-08-31
 
 ## 背景
 Neutralino `neu build --embed-resources` 产出未签名单文件 exe，会触发 Windows SmartScreen / Defender 拦截；蓝图未处理。

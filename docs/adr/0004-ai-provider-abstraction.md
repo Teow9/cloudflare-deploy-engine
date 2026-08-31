@@ -1,7 +1,7 @@
 # ADR-004: AI 后端抽象（插件轴）
 
 **Status**: accepted
-**日期**: 2026-02
+**日期**: 2026-08-31
 
 ## 背景
 蓝图 AI 默认 `gpt-3.5-turbo`（已过时），且 AI 服务应可插拔（OpenAI / Claude / Ollama / DeepSeek / 自定义）。

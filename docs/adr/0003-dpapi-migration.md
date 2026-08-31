@@ -1,7 +1,7 @@
 # ADR-003: DPAPI 凭证存储与"导出/导入重加密"迁移流程
 
 **Status**: accepted
-**日期**: 2026-02
+**日期**: 2026-08-31
 
 ## 背景
 Windows DPAPI `DataProtectionScope.CurrentUser` 加密数据与**机器+用户**绑定，换机无法解密。蓝图"复制文件夹到新电脑即用"的便携承诺对加密凭证不成立。

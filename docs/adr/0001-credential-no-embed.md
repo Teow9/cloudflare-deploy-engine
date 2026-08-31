@@ -1,10 +1,10 @@
 # ADR-001: 凭证默认不注入部署产物
 
 **Status**: accepted
-**日期**: 2026-02
+**日期**: 2026-08-31
 
 ## 背景
-旧项目 `早期原型` 将账号级 API Token / AccountId / Email 注入 `EMBEDED_SETTINGS` 随 `_worker.js` 部署到公网边缘，Token 要求 Pages/Workers/KV 全 Edit——一旦面板被攻破或代码泄露，等于交出账号写权限。
+早期原型工具曾将账号级 API Token / AccountId / Email 注入 `EMBEDED_SETTINGS` 随 `_worker.js` 部署到公网边缘，Token 要求 Pages/Workers/KV 全 Edit——一旦面板被攻破或代码泄露，等于交出账号写权限。
 
 ## 决策
 - `deploy-core.ps1` 的部署管线**默认不向产物写入任何凭证**（模板 manifest 声明 `embedCredentials: false`）。
