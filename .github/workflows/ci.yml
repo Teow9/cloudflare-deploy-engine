@@ -18,14 +18,16 @@ jobs:
       - name: ① 语法检查（PSParser）
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\syntax-check.ps1
 
-      - name: ② Pester 单元测试
+      - name: ⓪ 锁定 Pester 3.4（与引擎目标运行时 PS5.1 自带版本一致；runner 默认可能是 5.x）
         run: |
-          $files = @(
-            'tests/utils.tests.ps1', 'tests/config-manager.tests.ps1',
-            'tests/plugin-manager.tests.ps1', 'tests/template-manager.tests.ps1',
-            'tests/target-pages.tests.ps1'
-          )
-          Invoke-Pester -Script $files -EnableExit
+          if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version -eq '3.4.0' })) {
+            Install-Module Pester -RequiredVersion 3.4.0 -Force -Scope CurrentUser -SkipPublisherCheck
+          }
+
+      - name: ② Pester 单元测试（tests 全目录 9 套件）
+        run: |
+          Import-Module Pester -RequiredVersion 3.4.0
+          Invoke-Pester -Script tests -EnableExit
 
       - name: ③ PSScriptAnalyzer（Error 级零容忍）
         run: |
