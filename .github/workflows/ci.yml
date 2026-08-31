@@ -1,0 +1,61 @@
+# CI 五线：语法 / Pester / ScriptAnalyzer / 无凭据扫描 / plugins.json schema
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ① 语法检查（PSParser）
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\syntax-check.ps1
+
+      - name: ② Pester 单元测试
+        run: |
+          $files = @(
+            'tests/utils.tests.ps1', 'tests/config-manager.tests.ps1',
+            'tests/plugin-manager.tests.ps1', 'tests/template-manager.tests.ps1',
+            'tests/target-pages.tests.ps1'
+          )
+          Invoke-Pester -Script $files -EnableExit
+
+      - name: ③ PSScriptAnalyzer（Error 级零容忍）
+        run: |
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) {
+            Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -ErrorAction Stop
+          }
+          Import-Module PSScriptAnalyzer
+          $issues = Invoke-ScriptAnalyzer -Path scripts -Severity Error
+          if ($issues.Count -gt 0) { $issues | Format-List; exit 1 }
+          Write-Host "ScriptAnalyzer 通过：scripts 无 Error 级问题"
+
+      - name: ④ 无凭据扫描（修正版，不再豁免 config/deploy）
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\check-no-secrets.ps1
+
+      - name: ⑤ plugins.json schema 校验（四轴齐全 + handler 存在）
+        run: |
+          $reg = Get-Content plugins.json -Raw | ConvertFrom-Json
+          foreach ($axis in @('sources','templates','ai','targets')) {
+            if ($null -eq $reg.$axis) { Write-Error "缺少轴 $axis"; exit 1 }
+          }
+          foreach ($axis in @('sources','ai','targets')) {
+            foreach ($entry in $reg.$axis) {
+              if ($entry.handler -and -not (Test-Path $entry.handler)) {
+                Write-Error "handler 不存在：$($entry.handler)"; exit 1
+              }
+            }
+          }
+          foreach ($entry in $reg.templates) {
+            if (-not (Test-Path (Join-Path $entry.path 'template.json'))) {
+              Write-Error "模板缺少 template.json：$($entry.path)"; exit 1
+            }
+          }
+          Write-Host 'plugins.json schema 校验通过'

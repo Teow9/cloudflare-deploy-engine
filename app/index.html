@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Cloudflare Deploy Engine</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Cloudflare Deploy Engine</span>
+    <span class="status" id="status">就绪</span>
+  </header>
+
+  <main class="layout">
+    <!-- 左：配置区 -->
+    <section class="panel left">
+      <h2>📋 Cloudflare 凭证</h2>
+      <label>Account ID <input id="accountId" placeholder="xxxxxxxxxxxxxxxx" autocomplete="off"></label>
+      <label>Email <input id="email" type="email" placeholder="you@example.com" autocomplete="off"></label>
+      <label>API Token
+        <input id="apiToken" type="password" placeholder="cfut_..." autocomplete="off">
+      </label>
+      <div class="row">
+        <button id="btnSaveCred">💾 加密保存</button>
+        <button id="btnLoadCred" class="ghost">加载</button>
+        <button id="btnClearCred" class="ghost danger">清除</button>
+      </div>
+      <p class="hint">凭证经 Windows DPAPI 加密存入 data/config.enc.json，仅本机当前用户可解；删除文件夹即完全卸载。</p>
+
+      <h2>🧩 部署</h2>
+      <label>模板 / 来源
+        <select id="templateId">
+          <option value="plain">纯静态示例</option>
+          <option value="astro-site">Astro 博客站（预构建）</option>
+        </select>
+      </label>
+      <label>站点标题 <input id="siteTitle" value="我的站点"></label>
+      <label>副标题 <input id="siteTagline" value="由 Cloudflare Deploy Engine 部署"></label>
+      <div class="row">
+        <button id="btnDeploy" class="primary">🚀 部署</button>
+        <button id="btnDryRun" class="ghost">演练（DryRun）</button>
+        <button id="btnDestroy" class="ghost danger">🗑 销毁</button>
+      </div>
+
+      <h2>✨ AI 智能部署</h2>
+      <label>需求描述
+        <textarea id="aiRequest" rows="3" placeholder="例：我想做一个个人博客，支持暗色主题"></textarea>
+      </label>
+      <div class="row">
+        <button id="btnAi" class="ghost">✨ 生成方案并回填</button>
+        <button id="btnAiSettings" class="ghost">AI 设置</button>
+      </div>
+      <p id="aiHint" class="hint"></p>
+
+      <div class="row">
+        <button id="btnListPlugins" class="ghost tiny">列出插件</button>
+        <button id="btnListTemplates" class="ghost tiny">列出模板</button>
+      </div>
+    </section>
+
+    <!-- 右：日志区 -->
+    <section class="panel right">
+      <h2>📝 实时日志</h2>
+      <pre id="log" class="log"></pre>
+      <div class="result" id="result">—</div>
+    </section>
+  </main>
+
+  <script src="/js/neutralino.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

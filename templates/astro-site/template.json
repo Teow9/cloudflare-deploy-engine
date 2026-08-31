@@ -1,0 +1,11 @@
+{
+  "id": "astro-site",
+  "name": "Astro 博客站（预构建）",
+  "version": "1.0.0",
+  "description": "Astro 构建产物示例（ADR-002：随包分发预构建产物，用户零 Node 依赖）。完整源码与构建脚本位于 templates-src/，此目录仅含可部署产物",
+  "cloudflare": { "kv": false, "env": {} },
+  "parameters": [
+    { "name": "site_title", "label": "站点标题", "type": "string", "default": "Astro 示例" }
+  ],
+  "ai": { "keywords": ["博客", "Astro", "内容站"] }
+}

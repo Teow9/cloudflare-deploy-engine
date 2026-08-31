@@ -1,0 +1,16 @@
+{
+  "name": "cloudflare-deploy-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "轻量级、零依赖、数据全本地、AI 赋能的 Cloudflare Pages 一键部署工具",
+  "scripts": {
+    "neu:update": "neu update",
+    "dev": "neu run",
+    "build": "neu build --embed-resources",
+    "test": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-Pester -Script tests -EnableExit\"",
+    "check": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/syntax-check.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File tests/check-no-secrets.ps1"
+  },
+  "devDependencies": {
+    "@neutralinojs/neu": "^6.6.0"
+  }
+}

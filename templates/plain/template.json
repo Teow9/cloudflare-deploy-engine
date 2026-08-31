@@ -1,0 +1,12 @@
+{
+  "id": "plain",
+  "name": "纯静态示例",
+  "version": "1.0.0",
+  "description": "零构建的纯 HTML/CSS 单页站点，适合作为第一个部署体验模板",
+  "cloudflare": { "kv": false, "env": {} },
+  "parameters": [
+    { "name": "site_title", "label": "站点标题", "type": "string", "default": "我的站点" },
+    { "name": "site_tagline", "label": "副标题", "type": "string", "default": "由 Cloudflare Deploy Engine 部署" }
+  ],
+  "ai": { "keywords": ["博客", "个人网站", "静态", "单页", "作品集"] }
+}

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "sources": [
+    { "id": "local",  "enabled": true,  "handler": "scripts/plugins/sources/source-local.ps1" },
+    { "id": "github", "enabled": true,  "handler": "scripts/plugins/sources/source-github.ps1" },
+    { "id": "zip",    "enabled": false, "handler": "scripts/plugins/sources/source-zip.ps1" }
+  ],
+  "templates": [
+    { "id": "plain",      "enabled": true, "path": "templates/plain" },
+    { "id": "astro-site", "enabled": true, "path": "templates/astro-site" }
+  ],
+  "ai": [
+    { "id": "openai-compatible", "enabled": true, "handler": "scripts/plugins/ai/ai-openai-compatible.ps1" }
+  ],
+  "targets": [
+    { "id": "pages", "enabled": true, "handler": "scripts/plugins/targets/target-pages.ps1" }
+  ]
+}

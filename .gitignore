@@ -1,0 +1,12 @@
+# 运行时数据（含 DPAPI 加密配置、缓存）——绝不入库
+data/
+# 开发工具与构建产物
+node_modules/
+bin/
+.neu/
+app/js/neutralino.js
+app/resources/
+*.exe
+*.zip
+*.log
+Temporary file/

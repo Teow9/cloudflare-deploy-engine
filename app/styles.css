@@ -1,0 +1,55 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column;
+}
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; background: #1e293b; border-bottom: 1px solid #334155;
+}
+.brand { font-weight: 700; letter-spacing: 0.02em; }
+.status { font-size: 0.85rem; color: #94a3b8; }
+
+.layout { flex: 1; display: flex; gap: 12px; padding: 12px; min-height: 0; }
+.panel {
+  background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px;
+  overflow-y: auto;
+}
+.left { width: 400px; flex-shrink: 0; }
+.right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+h2 { font-size: 0.95rem; margin: 14px 0 8px; color: #93c5fd; }
+h2:first-child { margin-top: 0; }
+label { display: block; margin-bottom: 8px; font-size: 0.85rem; color: #cbd5e1; }
+input, select, textarea {
+  width: 100%; margin-top: 4px; padding: 8px 10px;
+  background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px;
+  font-size: 0.9rem;
+}
+textarea { resize: vertical; font-family: inherit; }
+.row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+button {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid #334155; cursor: pointer;
+  background: #334155; color: #e2e8f0; font-size: 0.88rem;
+}
+button:hover { background: #475569; }
+button.primary { background: #2563eb; border-color: #2563eb; }
+button.primary:hover { background: #3b82f6; }
+button.ghost { background: transparent; }
+button.danger:hover { background: #7f1d1d; border-color: #dc2626; }
+button.tiny { font-size: 0.78rem; padding: 5px 10px; }
+.hint { font-size: 0.75rem; color: #64748b; margin-top: 6px; line-height: 1.5; }
+
+.log {
+  flex: 1; background: #0b1120; border: 1px solid #334155; border-radius: 8px;
+  padding: 10px; font-size: 0.8rem; font-family: Consolas, "Courier New", monospace;
+  overflow-y: auto; white-space: pre-wrap; word-break: break-all; min-height: 200px;
+}
+.log .WARN { color: #fbbf24; }
+.log .ERROR { color: #f87171; }
+.result {
+  margin-top: 8px; background: #0b1120; border: 1px solid #334155; border-radius: 8px;
+  padding: 10px; font-size: 0.78rem; font-family: Consolas, monospace;
+  white-space: pre-wrap; word-break: break-all; color: #86efac; max-height: 160px; overflow-y: auto;
+}
