@@ -73,6 +73,7 @@ Copy-Item (Join-Path $Root 'scripts') (Join-Path $AppDir 'scripts') -Force -Recu
 Copy-Item (Join-Path $Root 'templates') (Join-Path $AppDir 'templates') -Force -Recurse
 Copy-Item (Join-Path $Root 'plugins.json') (Join-Path $AppDir 'plugins.json') -Force
 Copy-Item (Join-Path $Root 'README.md') (Join-Path $AppDir 'README.md') -Force
+Copy-Item (Join-Path $Root '使用说明.md') (Join-Path $AppDir '使用说明.md') -Force
 Copy-Item (Join-Path $Root 'docs\使用教程.md') (Join-Path $AppDir '使用教程.md') -Force
 Copy-Item (Join-Path $Root 'scripts\dev\start-zeroresidue.cmd') (Join-Path $AppDir 'start-zeroresidue.cmd') -Force
 
