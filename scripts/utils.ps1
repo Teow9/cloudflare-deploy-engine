@@ -174,6 +174,16 @@ function Unprotect-WithPassphrase {
     return $plain
 }
 
+function New-TempJsonFile {
+    # JSON 过 native 参数边界会被 PS 5.1 剥掉双引号（CRT 引号解析），
+    # 统一写临时文件，用 --data-binary @file / manifest=@file 传递。
+    # 调用方负责 finally 删除。
+    param([Parameter(Mandatory = $true)][string]$Json)
+    $file = Join-Path $env:TEMP ("cde-body-" + [guid]::NewGuid().ToString('N') + '.json')
+    Write-Utf8File -Path $file -Text $Json
+    return $file
+}
+
 # ---------------- 随机工具 ----------------
 function New-RandomHex {
     param([int]$Length = 32)

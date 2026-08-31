@@ -24,7 +24,12 @@ function Invoke-AiOpenaiCompatible {
     } | ConvertTo-Json -Depth 8 -Compress
 
     Write-LogLine -Level INFO -Message "调用 AI：$baseUrl/chat/completions（model=$($PluginArgs['Model'])）"
-    $resp = Invoke-Curl -s -X POST -H "Authorization: Bearer $($PluginArgs['ApiKey'])" -H 'Content-Type: application/json' -d $body "$baseUrl/chat/completions"
+    $tmpBody = New-TempJsonFile -Json $body
+    try {
+        $resp = Invoke-Curl -s -X POST -H "Authorization: Bearer $($PluginArgs['ApiKey'])" -H 'Content-Type: application/json' --data-binary ('@' + $tmpBody) "$baseUrl/chat/completions"
+    } finally {
+        Remove-Item -LiteralPath $tmpBody -Force -ErrorAction SilentlyContinue
+    }
     $obj = $resp | ConvertFrom-Json
     if (-not $obj.choices -or $obj.choices.Count -eq 0) {
         $err = if ($obj.error) { $obj.error.message } else { '空响应' }

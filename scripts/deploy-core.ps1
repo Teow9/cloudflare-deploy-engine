@@ -16,6 +16,7 @@ param(
     [string]$SourceArgsJson = '',
     [string]$ParamsJson = '',
     [string]$Project = '',
+    [ValidateSet('native', 'wrangler')][string]$Backend = 'native',
     [switch]$DryRun,
     [switch]$ListPlugins,
     [switch]$ListTemplates
@@ -90,6 +91,7 @@ function Invoke-Deploy {
         DryRun     = [bool]$DryRun
         KvRequired = $kvRequired
         EnvVars    = $envVars
+        Backend    = $Backend
         Action     = 'deploy'
     }
     $result = Invoke-Plugin -Axis 'targets' -Id 'pages' -PluginArgs $targetArgs

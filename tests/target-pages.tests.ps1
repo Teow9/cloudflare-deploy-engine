@@ -1,4 +1,4 @@
-﻿# target-pages 插件测试（网络全模拟）：manifest 构建 + 部署编排 + 删除
+﻿# target-pages 插件测试（网络全模拟）：资产两段式上传 + 部署编排 + 删除
 # 注意：target-pages 只在文件顶部加载一次，mock 定义在其后
 #      （避免 It 块内二次 dot-source 遮蔽 mock，导致真实出网）
 $script:Root = Split-Path -Parent $PSScriptRoot
@@ -6,56 +6,83 @@ $script:Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $script:Root 'scripts\config-manager.ps1')
 . (Join-Path $script:Root 'scripts\plugins\targets\target-pages.ps1')
 
-# ---- 模拟 Cloudflare API（拦截 Invoke-Curl，按 URL/方法返回固定 JSON） ----
+# ---- 模拟 Cloudflare API（拦截 Invoke-Curl，按 URL 分派） ----
 function Invoke-Curl {
     param([Parameter(ValueFromRemainingArguments = $true)][object[]]$CurlArgs)
-    $url = [string]$CurlArgs[$CurlArgs.Count - 1]
-    $isPost = @($CurlArgs) -contains 'POST'
-    $isDelete = @($CurlArgs) -contains 'DELETE'
+    $argsArr = @($CurlArgs)
+    $url = [string]$argsArr[$argsArr.Count - 1]
+
     if ($url -match '/user/tokens/verify') { return '{"success":true,"result":{"status":"active"}}' }
+    if ($url -match '/upload-token$') { return '{"success":true,"result":{"jwt":"mock-pages-jwt"}}' }
+    if ($url -match '/pages/assets/check-missing$') {
+        # 回显请求体中的 hashes（读取 --data-binary @file 内容）
+        $at = $argsArr | Where-Object { $_ -is [string] -and $_.StartsWith('@') -and $_.Length -gt 1 } | Select-Object -First 1
+        $hashes = @('mock-unknown-hash')
+        if ($at) {
+            $body = (Get-Content -LiteralPath $at.Substring(1) -Raw -Encoding UTF8 | ConvertFrom-Json)
+            $hashes = @($body.hashes)
+        }
+        return (@{ success = $true; result = $hashes } | ConvertTo-Json -Compress)
+    }
+    if ($url -match '/pages/assets/(upload|upsert-hashes)$') { return '{"success":true,"result":{}}' }
     if ($url -match '/storage/kv/namespaces["/]?$') { return '{"success":true,"result":{"id":"ns-1","title":"cde-kv"}}' }
     if ($url -match '/pages/projects/[^/]+/deployments/[^/]+$') { return '{"success":true,"result":{"id":"d1","latest_stage":{"name":"deploy","status":"success"}}}' }
     if ($url -match '/pages/projects/[^/]+/deployments$') {
-        if ($isPost) { return '{"success":true,"result":{"id":"deploy-123","url":"https://my-site.pages.dev"}}' }
+        if ($argsArr -contains 'POST') { return '{"success":true,"result":{"id":"deploy-123","url":"https://my-site.pages.dev"}}' }
         return '{"success":true,"result":{"id":"deploy-123"}}'
     }
     if ($url -match '/pages/projects$') {
-        if ($isPost) { return '{"success":true,"result":{"id":"p1","name":"my-site"}}' }
+        if ($argsArr -contains 'POST') { return '{"success":true,"result":{"id":"p1","name":"my-site"}}' }
         return '{"success":true,"result":[]}'
     }
     if ($url -match '/pages/projects/[^/]+$') {
-        if ($isPost) { return '{"success":true,"result":{"id":"p1","name":"my-site"}}' }
-        if ($isDelete) { return '{"success":true,"result":{"id":"p1"}}' }
+        if ($argsArr -contains 'POST') { return '{"success":true,"result":{"id":"p1","name":"my-site"}}' }
+        if ($argsArr -contains 'DELETE') { return '{"success":true,"result":{"id":"p1"}}' }
         return '{"success":false,"errors":[{"code":1005,"message":"not found"}]}'
     }
     throw "mock 未覆盖的请求：$url"
 }
 
-Describe 'Pages Manifest 构建' {
-    It '静态目录生成相对路径哈希清单' {
+# 探针 mock：测试内不触网，直接视为存活
+function Test-DeploymentUrl {
+    param([Parameter(Mandatory = $true)][string]$Url)
+    return '200'
+}
+
+Describe '文件记录与 manifest（官方格式）' {
+    It '生成 rel/hash/size/contentType 记录' {
         $src = Join-Path $env:TEMP ("site-" + [guid]::NewGuid())
         New-Item -ItemType Directory -Path $src -Force | Out-Null
         [System.IO.File]::WriteAllText((Join-Path $src 'index.html'), '<h1>hi</h1>')
         New-Item -ItemType Directory -Path (Join-Path $src 'assets') -Force | Out-Null
         [System.IO.File]::WriteAllText((Join-Path $src 'assets\app.js'), 'console.log(1)')
-        $m = New-PagesManifest -SourceRoot $src
-        $m.Count | Should Be 2
-        $m.ContainsKey('/index.html') | Should Be $true
-        $m.ContainsKey('/assets/app.js') | Should Be $true
-        $m['/index.html'].hash | Should Match '^[0-9a-f]{64}$'
+        $recs = @(New-FileRecords -SourceRoot $src)
+        $recs.Count | Should Be 2
+        ($recs | Where-Object { $_.rel -eq 'index.html' }).hash | Should Match '^[0-9a-f]{64}$'
+        ($recs | Where-Object { $_.rel -eq 'index.html' }).size | Should Be 11
+        ($recs | Where-Object { $_.rel -eq 'assets/app.js' }).contentType | Should Be 'application/javascript'
         Remove-Item -LiteralPath $src -Recurse -Force
     }
-    It '空格文件名的清单被拒绝' {
+    It 'manifest 为路径→hash 字符串映射' {
+        $src = Join-Path $env:TEMP ("site-" + [guid]::NewGuid())
+        New-Item -ItemType Directory -Path $src -Force | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $src 'index.html'), '<h1>hi</h1>')
+        $m = New-StaticManifest -Records @(New-FileRecords -SourceRoot $src)
+        $m.Count | Should Be 1
+        $m['/index.html'] | Should Match '^[0-9a-f]{64}$'
+        Remove-Item -LiteralPath $src -Recurse -Force
+    }
+    It '空格文件名的记录被拒绝' {
         $src = Join-Path $env:TEMP ("site-" + [guid]::NewGuid())
         New-Item -ItemType Directory -Path $src -Force | Out-Null
         [System.IO.File]::WriteAllText((Join-Path $src 'my page.html'), '<h1>hi</h1>')
-        { New-PagesManifest -SourceRoot $src } | Should Throw
+        { New-FileRecords -SourceRoot $src } | Should Throw
         Remove-Item -LiteralPath $src -Recurse -Force
     }
 }
 
-Describe '部署全流程（API 模拟，非 DryRun）' {
-    It '校验 Token → 创建项目 → 直传 → 轮询 → 返回 URL' {
+Describe '部署全流程（API 模拟，官方两段式）' {
+    It '校验 Token → 项目 → assets 上传 → 部署 → 返回 URL' {
         $src = Join-Path $env:TEMP ("site-" + [guid]::NewGuid())
         New-Item -ItemType Directory -Path $src -Force | Out-Null
         [System.IO.File]::WriteAllText((Join-Path $src 'index.html'), '<h1>hi</h1>')
@@ -79,7 +106,7 @@ Describe '部署全流程（API 模拟，非 DryRun）' {
         New-Item -ItemType Directory -Path $src -Force | Out-Null
         [System.IO.File]::WriteAllText((Join-Path $src 'index.html'), '<h1>hi</h1>')
         $cfgPath = Join-Path $env:TEMP ("cfg-" + [guid]::NewGuid() + '.enc.json')
-        Get-AppConfig -Path $cfgPath -Create | Out-Null   # 空凭证
+        Get-AppConfig -Path $cfgPath -Create | Out-Null
         $r = Invoke-TargetPages -PluginArgs @{
             ConfigPath = $cfgPath; SourceRoot = $src; Project = 'my-site'
             DryRun = $true; Action = 'deploy'
