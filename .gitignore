@@ -14,3 +14,6 @@ app/resources/
 *.zip
 *.log
 Temporary file/
+# 模板源码构建产物（维护者本地）
+templates-src/*/node_modules/
+templates-src/*/dist/

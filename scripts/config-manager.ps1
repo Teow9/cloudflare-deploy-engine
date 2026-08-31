@@ -43,9 +43,17 @@ function Get-AppConfig {
     }
     $raw = Read-ConfigFileRaw -Path $Path
     if ($raw.version -ne 1) { throw "不支持的配置版本：$($raw.version)" }
+    # 结构迁移：旧版本创建的配置可能缺新 settings 字段（如 lastTemplateParams/marketUrl），就地补齐
+    $settings = $raw.settings
+    foreach ($k in @('pagesProject', 'lastTemplate', 'lastTemplateParams', 'marketUrl')) {
+        if ($null -eq $settings.PSObject.Properties[$k]) {
+            $settings | Add-Member -NotePropertyName $k `
+                -NotePropertyValue $(if ($k -eq 'lastTemplateParams') { @{} } else { '' }) -Force
+        }
+    }
     return [PSCustomObject]@{
         Path     = $Path
-        settings = $raw.settings
+        settings = $settings
         secrets  = [PSCustomObject]@{
             accountId = Unprotect-Secret $raw.secrets.accountId
             apiToken  = Unprotect-Secret $raw.secrets.apiToken

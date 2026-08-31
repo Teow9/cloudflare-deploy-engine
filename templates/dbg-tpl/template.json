@@ -1,1 +1,0 @@
-﻿{ "id": "dbg-tpl", "name": "dbg", "version": "1.0.0", "cloudflare": {"kv":$false,"env":@{}}, "parameters": [], "ai": {"keywords":[]} }

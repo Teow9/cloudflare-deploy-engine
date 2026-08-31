@@ -3,11 +3,15 @@
   "sources": [
     { "id": "local",  "enabled": true,  "handler": "scripts/plugins/sources/source-local.ps1" },
     { "id": "github", "enabled": true,  "handler": "scripts/plugins/sources/source-github.ps1" },
+    { "id": "gitlab", "enabled": true,  "handler": "scripts/plugins/sources/source-gitlab.ps1" },
     { "id": "zip",    "enabled": true,  "handler": "scripts/plugins/sources/source-zip.ps1" }
   ],
   "templates": [
     { "id": "plain",      "enabled": true, "path": "templates/plain" },
-    { "id": "astro-site", "enabled": true, "path": "templates/astro-site" }
+    { "id": "astro-site", "enabled": true, "path": "templates/astro-site" },
+    { "id": "react-vite", "enabled": true, "path": "templates/react-vite" },
+    { "id": "docs-site",  "enabled": true, "path": "templates/docs-site" },
+    { "id": "nav-site",   "enabled": true, "path": "templates/nav-site" }
   ],
   "ai": [
     { "id": "openai-compatible", "enabled": true, "handler": "scripts/plugins/ai/ai-openai-compatible.ps1" }

@@ -1,0 +1,13 @@
+{
+  "id": "react-vite",
+  "name": "React 落地页（Vite 预构建）",
+  "version": "1.0.0",
+  "description": "React + Vite 单页落地页（ADR-002：产物预构建分发，用户零 Node）",
+  "cloudflare": { "kv": false, "env": {} },
+  "parameters": [
+    { "name": "site_title", "label": "站点标题", "type": "string", "default": "React 落地页" },
+    { "name": "site_tagline", "label": "副标题", "type": "string", "default": "由 Cloudflare Deploy Engine 部署" },
+    { "name": "theme", "label": "主题", "type": "enum", "enum": ["light", "dark"], "default": "dark" }
+  ],
+  "ai": { "keywords": ["落地页", "React", "单页应用", "作品集", "Landing"] }
+}

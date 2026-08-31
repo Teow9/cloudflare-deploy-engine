@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>指南 · {{site_title}}</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <span class="brand">{{site_title}}</span>
+    <span class="links"><a href="/">首页</a><a href="/guide.html">指南</a><a href="/api.html">API</a></span>
+  </nav>
+  <main class="content">
+    <h1>使用指南</h1>
+    <h2>快速开始</h2>
+    <p>在部署表单中填写站点标题替换本页 <code>{{site_title}}</code> 占位符。</p>
+    <h2>部署</h2>
+    <p>使用 Cloudflare Deploy Engine 的「内置模板」→「多页文档站」，参数替换后一键部署。</p>
+  </main>
+  <footer>© {{site_title}} · Cloudflare Deploy Engine</footer>
+</body>
+</html>

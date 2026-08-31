@@ -6,16 +6,16 @@ $script:Root = Split-Path -Parent $PSScriptRoot
 Describe '插件注册表' {
     It 'plugins.json 四轴齐全' {
         $reg = Get-PluginRegistry -Refresh
-        $reg.sources.Count | Should Be 3
-        $reg.templates.Count | Should Be 2
+        $reg.sources.Count | Should Be 4
+        $reg.templates.Count | Should Be 5
         $reg.ai.Count | Should Be 1
         $reg.targets.Count | Should Be 1
     }
-    It 'Get-PluginList 枚举四轴（理念指标：sources×3/templates×2/ai×1/targets×1）' {
+    It 'Get-PluginList 枚举四轴（理念指标：sources×4/templates×5/ai×1/targets×1）' {
         $list = @(Get-PluginList)
-        $list.Count | Should Be 7
-        @($list | Where-Object { $_.axisKey -eq 'sources' }).Count | Should Be 3
-        @($list | Where-Object { $_.axisKey -eq 'templates' }).Count | Should Be 2
+        $list.Count | Should Be 11
+        @($list | Where-Object { $_.axisKey -eq 'sources' }).Count | Should Be 4
+        @($list | Where-Object { $_.axisKey -eq 'templates' }).Count | Should Be 5
         @($list | Where-Object { $_.axisKey -eq 'ai' }).Count | Should Be 1
         @($list | Where-Object { $_.axisKey -eq 'targets' }).Count | Should Be 1
     }
@@ -39,6 +39,13 @@ Describe '插件分发' {
         $meta = Invoke-Plugin -Axis templates -Id plain -PluginArgs @{}
         $meta.id | Should Be 'plain'
         $meta.parameters.Count | Should Be 2
+    }
+    It 'source-gitlab archive URL 解析（D4，多段路径）' {
+        . (Join-Path $script:Root 'scripts\plugins\sources\source-gitlab.ps1')
+        Resolve-GitlabArchiveUrl -Raw 'group/sub-group/project' -Ref 'main' |
+            Should Be 'https://gitlab.com/group/sub-group/project/-/archive/main/project-main.zip'
+        Resolve-GitlabArchiveUrl -Raw 'https://gitlab.com/a/b' -Ref 'v1.0' |
+            Should Be 'https://gitlab.com/a/b/-/archive/v1.0/b-v1.0.zip'
     }
     It '禁用插件不可调用（临时禁用后恢复，不依赖注册表默认状态）' {
         $regPath = Join-Path $script:Root 'plugins.json'

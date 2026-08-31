@@ -244,8 +244,9 @@ function Read-DeployHistory {
 
 function Add-DeployHistory {
     # 追加一条部署记录（上限 50 条，超出丢最旧）
+    # Project 非 Mandatory：部署失败时项目名可能未知（避免绑定错误掩盖原始异常）
     param(
-        [Parameter(Mandatory = $true)][string]$Project,
+        [string]$Project = '',
         [string]$Source = '',
         [hashtable]$SourceArgs = @{},
         [string]$Template = '',

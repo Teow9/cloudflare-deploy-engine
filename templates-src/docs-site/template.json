@@ -1,0 +1,12 @@
+{
+  "id": "docs-site",
+  "name": "多页文档站（纯静态）",
+  "version": "1.0.0",
+  "description": "预构建的三页静态文档站（首页/指南/API），适合项目文档与手册",
+  "cloudflare": { "kv": false, "env": {} },
+  "parameters": [
+    { "name": "site_title", "label": "站点标题", "type": "string", "default": "我的文档站" },
+    { "name": "site_subtitle", "label": "副标题", "type": "string", "default": "极简静态文档模板" }
+  ],
+  "ai": { "keywords": ["文档", "手册", "项目说明", "技术文档"] }
+}

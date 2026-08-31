@@ -1,0 +1,12 @@
+{
+  "id": "nav-site",
+  "name": "导航站（链接聚合，纯静态）",
+  "version": "1.0.0",
+  "description": "参数化链接导航页：粘贴 JSON 链接数组即生成卡片导航站",
+  "cloudflare": { "kv": false, "env": {} },
+  "parameters": [
+    { "name": "site_title", "label": "站点标题", "type": "string", "default": "我的导航站" },
+    { "name": "links_json", "label": "链接列表（JSON 数组）", "type": "string", "default": "[{\"name\":\"Cloudflare\",\"url\":\"https://cloudflare.com\"},{\"name\":\"GitHub\",\"url\":\"https://github.com\"},{\"name\":\"Astro\",\"url\":\"https://astro.build\"}]" }
+  ],
+  "ai": { "keywords": ["导航", "网址导航", "链接页", "书签"] }
+}

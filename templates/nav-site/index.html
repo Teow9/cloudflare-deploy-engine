@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{site_title}}</title>
+  <link rel="stylesheet" href="/style.css">
+  <script>const LINKS = {{links_json}};</script>
+</head>
+<body>
+  <header class="hero">
+    <h1>{{site_title}}</h1>
+    <p class="sub">快捷导航 · 参数化链接聚合（部署时替换 links_json）</p>
+  </header>
+  <main id="links" class="links"></main>
+  <footer>© {{site_title}} · Cloudflare Deploy Engine</footer>
+  <script>
+    document.getElementById('links').innerHTML = LINKS.map(function (l) {
+      return '<a class="card" href="' + l.url + '" target="_blank" rel="noopener">' + l.name + '</a>';
+    }).join('');
+  </script>
+</body>
+</html>

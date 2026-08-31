@@ -4,12 +4,21 @@ $script:Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $script:Root 'scripts\template-manager.ps1')
 
 Describe '模板清单与元数据' {
-    It 'Get-TemplateList 返回两个已启用模板' {
+    It 'Get-TemplateList 返回五个已启用模板' {
         $list = @(Get-TemplateList)
-        $list.Count | Should Be 2
+        $list.Count | Should Be 5
         $ids = @($list | ForEach-Object { $_.id })
         ($ids -contains 'plain') | Should Be $true
         ($ids -contains 'astro-site') | Should Be $true
+        ($ids -contains 'react-vite') | Should Be $true
+        ($ids -contains 'docs-site') | Should Be $true
+        ($ids -contains 'nav-site') | Should Be $true
+    }
+    It 'react-vite 模板含 enum 参数（A4）' {
+        $meta = Get-TemplateMeta -TemplateId react-vite
+        $theme = @($meta.parameters | Where-Object { $_.name -eq 'theme' })[0]
+        $theme.type | Should Be 'enum'
+        $theme.enum | Should Be @('light', 'dark')
     }
     It 'Get-TemplateMeta 解析参数与 ai 关键词' {
         $meta = Get-TemplateMeta -TemplateId plain

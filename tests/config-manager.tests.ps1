@@ -70,6 +70,29 @@ Describe '清除配置' {
     }
 }
 
+Describe '旧配置结构迁移（缺新 settings 字段时自动补齐）' {
+    It '旧版 settings 读取后含 lastTemplateParams/marketUrl，可保存' {
+        $tmp = Join-Path $env:TEMP ("cfg-old-" + [guid]::NewGuid() + '.enc.json')
+        # 手工构造旧结构（无 lastTemplateParams/marketUrl）
+        $old = [PSCustomObject]@{
+            version  = 1
+            settings = [PSCustomObject]@{ pagesProject = 'p-1' }
+            secrets  = [PSCustomObject]@{ accountId = ''; apiToken = ''; email = '' }
+            ai       = [PSCustomObject]@{ baseUrl = ''; model = ''; apiKey = '' }
+        }
+        Save-AppConfig -Path $tmp -Config $old
+        $cfg = Get-AppConfig -Path $tmp
+        $cfg.settings.lastTemplateParams | Should Not Be $null
+        $cfg.settings.marketUrl | Should Be ''
+        # 补字段后可赋值并保存（回归：lastTemplateParams 赋值错误真实事故）
+        $cfg.settings.lastTemplateParams = @{ site_title = '迁移' }
+        Save-AppConfig -Path $tmp -Config $cfg
+        $re = Get-AppConfig -Path $tmp
+        $re.settings.lastTemplateParams.site_title | Should Be '迁移'
+        Remove-Item -LiteralPath $tmp -Force
+    }
+}
+
 Describe 'AI 设置字段（M4：baseUrl/model 持久化，apiKey 加密）' {
     It 'aiBaseUrl/aiModel/aiApiKey 设置后可读回' {
         $tmp = Join-Path $env:TEMP ("cfg-ai-" + [guid]::NewGuid() + '.enc.json')

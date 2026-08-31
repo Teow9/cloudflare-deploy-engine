@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{site_title}}</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <span class="brand">{{site_title}}</span>
+    <span class="links"><a href="/">首页</a><a href="/guide.html">指南</a><a href="/api.html">API</a></span>
+  </nav>
+  <header class="hero">
+    <h1>{{site_title}}</h1>
+    <p class="sub">{{site_subtitle}}</p>
+  </header>
+  <main class="content">
+    <h2>开始使用</h2>
+    <p>这是一份预构建的纯静态文档模板，共三个页面：首页、指南、API。</p>
+    <p>部署时可通过参数替换标题与副标题（<code>{{site_title}}</code> / <code>{{site_subtitle}}</code>）。</p>
+  </main>
+  <footer>© {{site_title}} · Cloudflare Deploy Engine</footer>
+</body>
+</html>
