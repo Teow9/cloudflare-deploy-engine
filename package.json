@@ -11,6 +11,7 @@
     "check": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/syntax-check.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File tests/check-no-secrets.ps1"
   },
   "devDependencies": {
-    "@neutralinojs/neu": "^11.7.2"
+    "@neutralinojs/neu": "^11.7.2",
+    "@neutralinojs/lib": "^6.9.0"
   }
 }
