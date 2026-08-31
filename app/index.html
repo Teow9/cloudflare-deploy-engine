@@ -7,64 +7,139 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">Cloudflare Deploy Engine</span>
-    <span class="status" id="status">就绪</span>
+    <span class="brand">⚡ Cloudflare Deploy Engine</span>
+    <div class="top-right">
+      <span class="status" id="status">就绪</span>
+      <button id="btnCancel" class="ghost danger hidden">■ 取消任务</button>
+    </div>
   </header>
 
   <main class="layout">
-    <!-- 左：配置区 -->
+    <!-- ============ 左：配置区 ============ -->
     <section class="panel left">
-      <h2>📋 Cloudflare 凭证</h2>
+
+      <h2>🔑 Cloudflare 凭证</h2>
       <label>Account ID <input id="accountId" placeholder="xxxxxxxxxxxxxxxx" autocomplete="off"></label>
       <label>Email <input id="email" type="email" placeholder="you@example.com" autocomplete="off"></label>
       <label>API Token
-        <input id="apiToken" type="password" placeholder="cfut_..." autocomplete="off">
+        <span class="secret-row">
+          <input id="apiToken" type="password" placeholder="cfut_..." autocomplete="off">
+          <button id="btnToggleToken" class="tiny" title="显示 / 隐藏">👁</button>
+        </span>
       </label>
       <div class="row">
-        <button id="btnSaveCred">💾 加密保存</button>
+        <button id="btnSaveCred" class="primary">💾 加密保存</button>
         <button id="btnLoadCred" class="ghost">加载</button>
         <button id="btnClearCred" class="ghost danger">清除</button>
       </div>
-      <p class="hint">凭证经 Windows DPAPI 加密存入 data/config.enc.json，仅本机当前用户可解；删除文件夹即完全卸载。</p>
-
-      <h2>🧩 部署</h2>
-      <label>模板 / 来源
-        <select id="templateId">
-          <option value="plain">纯静态示例</option>
-          <option value="astro-site">Astro 博客站（预构建）</option>
-        </select>
-      </label>
-      <label>站点标题 <input id="siteTitle" value="我的站点"></label>
-      <label>副标题 <input id="siteTagline" value="由 Cloudflare Deploy Engine 部署"></label>
       <div class="row">
-        <button id="btnDeploy" class="primary">🚀 部署</button>
-        <button id="btnDryRun" class="ghost">演练（DryRun）</button>
-        <button id="btnDestroy" class="ghost danger">🗑 销毁</button>
+        <button id="btnExport" class="ghost tiny">📤 导出（换机迁移）</button>
+        <button id="btnImport" class="ghost tiny">📥 导入</button>
+        <button id="btnTokenGuide" class="ghost tiny">🔒 Token 权限指引</button>
+      </div>
+      <p class="hint">凭证经 Windows DPAPI 加密存于本机 data/config.enc.json，仅当前用户可解；删除文件夹即完全卸载。</p>
+
+      <h2>🚀 部署</h2>
+      <div class="seg" id="modeSeg">
+        <button id="segTemplate" class="seg-btn active">内置模板</button>
+        <button id="segSource" class="seg-btn">自定义来源</button>
       </div>
 
-      <h2>✨ AI 智能部署</h2>
-      <label>需求描述
-        <textarea id="aiRequest" rows="3" placeholder="例：我想做一个个人博客，支持暗色主题"></textarea>
+      <!-- 模板模式 -->
+      <div id="blockTemplate">
+        <label>模板
+          <select id="templateId" title="部署到本地展开目录的预构建模板"></select>
+        </label>
+        <div id="tplParams"></div>
+      </div>
+
+      <!-- 来源模式 -->
+      <div id="blockSource" class="hidden">
+        <label>来源类型
+          <select id="sourceId">
+            <option value="local">📁 本地文件夹</option>
+            <option value="github">🐙 GitHub 仓库（codeload，零依赖）</option>
+            <option value="zip">📦 本地压缩包（zip/tar/tgz）</option>
+          </select>
+        </label>
+        <div id="srcFields"></div>
+      </div>
+
+      <label>项目名（决定 *.pages.dev 域名，留空自动派生）
+        <input id="projectName" placeholder="my-site" autocomplete="off">
+      </label>
+
+      <div class="row">
+        <button id="btnDeploy" class="primary">🚀 部署</button>
+        <button id="btnDryRun" class="ghost">演练 DryRun</button>
+        <button id="btnDestroy" class="ghost danger">🗑 销毁项目</button>
+      </div>
+
+      <label class="inline">部署后端
+        <select id="backendSel">
+          <option value="native">native（引擎直传 · 默认）</option>
+          <option value="wrangler">wrangler（官方客户端 · 需自行安装）</option>
+        </select>
+      </label>
+      <p class="hint">首次部署建议先「演练 DryRun」验证配置，全程不触碰云端。</p>
+
+      <h2>✨ AI 智能部署（只回填，永不自动部署）</h2>
+      <label>用一句话描述需求
+        <textarea id="aiRequest" rows="3" placeholder="例：我想做一个个人博客，风格简洁，标题叫我的小站"></textarea>
       </label>
       <div class="row">
         <button id="btnAi" class="ghost">✨ 生成方案并回填</button>
-        <button id="btnAiSettings" class="ghost">AI 设置</button>
+        <button id="btnAiSettings" class="ghost">⚙ AI 设置</button>
       </div>
-      <p id="aiHint" class="hint"></p>
-
-      <div class="row">
-        <button id="btnListPlugins" class="ghost tiny">列出插件</button>
-        <button id="btnListTemplates" class="ghost tiny">列出模板</button>
+      <div id="aiSuggestion" class="suggestion hidden">
+        <div class="sugg-head">🤖 生成方案
+          <button id="btnAiClear" class="tiny ghost">收起</button>
+        </div>
+        <p id="aiExplanation" class="hint"></p>
+        <p id="aiMeta" class="hint"></p>
       </div>
     </section>
 
-    <!-- 右：日志区 -->
+    <!-- ============ 右：日志与结果 ============ -->
     <section class="panel right">
       <h2>📝 实时日志</h2>
       <pre id="log" class="log"></pre>
-      <div class="result" id="result">—</div>
+      <h2>📦 部署结果</h2>
+      <div id="result" class="result">—</div>
     </section>
   </main>
+
+  <!-- ============ 首启遮罩（免责 + 条款） ============ -->
+  <div id="firstRun" class="overlay hidden">
+    <div class="modal">
+      <h2 class="modal-title">👋 欢迎使用 Cloudflare Deploy Engine</h2>
+      <div class="modal-body">
+        <p><b>免责声明与使用条款</b></p>
+        <ol>
+          <li>本工具仅用于<b>合法技术研究与合规场景</b>：部署<b>你自己的内容</b>到<b>你自己的 Cloudflare 账号</b>。</li>
+          <li>本工具<b>不提供、不运营、不推销任何网络代理服务</b>，不含代理 / VPN / 订阅 / 优选 IP 相关功能。</li>
+          <li>使用者须遵守所在地法律法规与 Cloudflare 服务条款；因使用产生的一切风险由使用者自行承担。</li>
+          <li>凭证仅经 Windows DPAPI 加密存储于本机 <code>data/config.enc.json</code>，删除文件夹即完全卸载。</li>
+        </ol>
+        <p class="hint">首次使用请先阅读 <a id="firstRunTokenGuide" href="#">Token 权限指引</a>：建议创建<b>独立 API Token</b>，只勾选 <b>Cloudflare Pages:Edit</b> 权限。</p>
+      </div>
+      <div class="modal-actions">
+        <button id="btnFirstRunOk" class="primary">我已阅读并同意，开始使用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 通用模态（导出/导入/AI 设置/Token 指引） ============ -->
+  <div id="modal" class="overlay hidden">
+    <div class="modal">
+      <h2 class="modal-title" id="modalTitle"></h2>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-actions">
+        <button id="modalOk" class="primary">确定</button>
+        <button id="modalCancel" class="ghost">取消</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/js/neutralino.js"></script>
   <script src="/app.js"></script>

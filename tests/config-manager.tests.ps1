@@ -69,3 +69,19 @@ Describe '清除配置' {
         (Test-Path -LiteralPath $tmp) | Should Be $false
     }
 }
+
+Describe 'AI 设置字段（M4：baseUrl/model 持久化，apiKey 加密）' {
+    It 'aiBaseUrl/aiModel/aiApiKey 设置后可读回' {
+        $tmp = Join-Path $env:TEMP ("cfg-ai-" + [guid]::NewGuid() + '.enc.json')
+        Set-SecretField -Path $tmp -Field aiBaseUrl -Value 'https://api.deepseek.com/v1'
+        Set-SecretField -Path $tmp -Field aiModel -Value 'deepseek-chat'
+        Set-SecretField -Path $tmp -Field aiApiKey -Value 'sk-ai-secret-1'
+        $re = Get-AppConfig -Path $tmp
+        $re.ai.baseUrl | Should Be 'https://api.deepseek.com/v1'
+        $re.ai.model | Should Be 'deepseek-chat'
+        $re.ai.apiKey | Should Be 'sk-ai-secret-1'
+        $raw = Get-Content -LiteralPath $tmp -Raw -Encoding UTF8
+        $raw | Should Not Match 'sk-ai-secret-1'
+        Remove-Item -LiteralPath $tmp -Force
+    }
+}

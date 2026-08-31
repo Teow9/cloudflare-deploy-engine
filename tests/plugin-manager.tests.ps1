@@ -40,8 +40,19 @@ Describe '插件分发' {
         $meta.id | Should Be 'plain'
         $meta.parameters.Count | Should Be 2
     }
-    It '禁用插件不可调用' {
-        # zip 在注册表中 disabled=true
-        { Invoke-Plugin -Axis sources -Id zip -PluginArgs @{ Path = 'x.zip' } } | Should Throw
+    It '禁用插件不可调用（临时禁用后恢复，不依赖注册表默认状态）' {
+        $regPath = Join-Path $script:Root 'plugins.json'
+        $orig = Get-Content -LiteralPath $regPath -Raw -Encoding UTF8
+        try {
+            $reg = $orig | ConvertFrom-Json
+            $reg.sources | Where-Object { $_.id -eq 'zip' } | ForEach-Object { $_.enabled = $false }
+            [System.IO.File]::WriteAllText($regPath, ($reg | ConvertTo-Json -Depth 6),
+                (New-Object System.Text.UTF8Encoding($false)))
+            $script:PluginRegistryCache = $null
+            { Invoke-Plugin -Axis sources -Id zip -PluginArgs @{ Path = 'x.zip' } } | Should Throw
+        } finally {
+            [System.IO.File]::WriteAllText($regPath, $orig, (New-Object System.Text.UTF8Encoding($false)))
+            $script:PluginRegistryCache = $null
+        }
     }
 }

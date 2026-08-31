@@ -7,7 +7,8 @@
 
 param(
     [string]$ConfigPath = '',
-    [Parameter(Mandatory = $true)][string]$Request
+    [Parameter(Mandatory = $true)][string]$Request,
+    [string]$RequestB64 = ''
 )
 
 . (Join-Path $PSScriptRoot 'utils.ps1')
@@ -82,6 +83,11 @@ function Invoke-AiSuggest {
 
 # ---------------- 入口 ----------------
 try {
+    if ($RequestB64) {
+        try { $Request = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($RequestB64)) }
+        catch { throw 'RequestB64 不是合法 Base64' }
+    }
+    if (-not $Request) { throw '缺少 -Request（或 -RequestB64）' }
     if (-not $ConfigPath) { $ConfigPath = (Join-Path (Get-DataDir) 'config.enc.json') }
     Write-Result (Invoke-AiSuggest)
 } catch {

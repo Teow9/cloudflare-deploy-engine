@@ -83,10 +83,10 @@ function Save-AppConfig {
 }
 
 function Set-SecretField {
-    # 便捷更新：-Field accountId|apiToken|email|aiApiKey
+    # 便捷更新：-Field accountId|apiToken|email|aiApiKey|aiBaseUrl|aiModel
     param(
         [string]$Path = '',
-        [Parameter(Mandatory = $true)][ValidateSet('accountId', 'apiToken', 'email', 'aiApiKey')][string]$Field,
+        [Parameter(Mandatory = $true)][ValidateSet('accountId', 'apiToken', 'email', 'aiApiKey', 'aiBaseUrl', 'aiModel')][string]$Field,
         [string]$Value = ''
     )
     $cfg = Get-AppConfig -Path $Path -Create
@@ -95,6 +95,8 @@ function Set-SecretField {
         'apiToken'  { $cfg.secrets.apiToken = $Value }
         'email'     { $cfg.secrets.email = $Value }
         'aiApiKey'  { $cfg.ai.apiKey = $Value }
+        'aiBaseUrl' { $cfg.ai.baseUrl = $Value }
+        'aiModel'   { $cfg.ai.model = $Value }
     }
     Save-AppConfig -Path $cfg.Path -Config $cfg
     return $cfg
@@ -162,6 +164,11 @@ if ($MyInvocation.InvocationName -ne '.') {
             '-Verb'       { $verb = $args[++$i] }
             '-Field'      { $field = $args[++$i] }
             '-Value'      { $value = $args[++$i] }
+            '-ValueB64'   {
+                # UI 通道：值经 Base64（UTF-8），免疫命令行引号/编码问题
+                try { $value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($args[++$i])) }
+                catch { throw 'ValueB64 不是合法 Base64' }
+            }
             '-Passphrase' { $pass = $args[++$i] }
             '-OutFile'    { $out = $args[++$i] }
             '-InFile'     { $in = $args[++$i] }
@@ -173,7 +180,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         switch ($verb) {
             'get'    { Write-Result (Get-AppConfig -Path $cfgPath -Create) }
             'set'    {
-                if (-not $field) { throw 'set 需要 -Field（accountId|apiToken|email|aiApiKey）' }
+                if (-not $field) { throw 'set 需要 -Field（accountId|apiToken|email|aiApiKey|aiBaseUrl|aiModel）' }
                 Set-SecretField -Path $cfgPath -Field $field -Value $value | Out-Null
                 Write-Result @{ action = 'set'; field = $field; saved = $true }
             }

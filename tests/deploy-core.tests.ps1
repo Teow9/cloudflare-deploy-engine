@@ -33,4 +33,11 @@ Describe 'deploy-core DryRun 全链路' {
         $r = Invoke-DeployCli -ExtraArgs @('-DryRun')
         $r.error | Should Match 'TemplateId'
     }
+    It 'ParamsB64 通道解码（UI 安全通道回归，含中文）' {
+        $json = '{"site_title":"我的站"}'
+        $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json))
+        $r = Invoke-DeployCli -ExtraArgs @('-TemplateId', 'plain', '-ParamsB64', $b64, '-DryRun')
+        $r.error | Should Be $null
+        $r.meta.parameters.site_title | Should Be '我的站'
+    }
 }

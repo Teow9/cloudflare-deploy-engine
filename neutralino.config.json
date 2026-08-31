@@ -13,6 +13,11 @@
     "app.*",
     "os.getPath",
     "os.spawnProcess",
+    "os.killProcess",
+    "os.showOpenDialog",
+    "os.showFolderDialog",
+    "filesystem.readDirectory",
+    "filesystem.readFile",
     "debug.log"
   ],
   "modes": {
@@ -30,7 +35,7 @@
     "resourcesPath": "/resources/",
     "extensionsPath": "/extensions/",
     "clientLibrary": "/resources/js/neutralino.js",
-    "binaryVersion": "6.6.0",
-    "clientVersion": "6.6.0"
+    "binaryVersion": "6.9.0",
+    "clientVersion": "6.9.0"
   }
 }

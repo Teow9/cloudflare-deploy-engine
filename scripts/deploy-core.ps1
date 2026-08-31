@@ -15,6 +15,8 @@ param(
     [string]$SourceId = '',
     [string]$SourceArgsJson = '',
     [string]$ParamsJson = '',
+    [string]$ParamsB64 = '',
+    [string]$SourceArgsB64 = '',
     [string]$Project = '',
     [ValidateSet('native', 'wrangler')][string]$Backend = 'native',
     [switch]$DryRun,
@@ -35,6 +37,15 @@ function Resolve-DeployProject {
 }
 
 function Invoke-Deploy {
+    # UI/CLI 安全通道：Base64(UTF-8) 解码 JSON 参数，免疫命令行引号与编码剥离
+    if ($ParamsB64) {
+        try { $ParamsJson = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($ParamsB64)) }
+        catch { throw 'ParamsB64 不是合法 Base64' }
+    }
+    if ($SourceArgsB64) {
+        try { $SourceArgsJson = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($SourceArgsB64)) }
+        catch { throw 'SourceArgsB64 不是合法 Base64' }
+    }
     $cfg = Get-AppConfig -Path $ConfigPath
 
     # ---- 1. 解析来源（模板 XOR 自定义来源） ----
@@ -102,6 +113,12 @@ function Invoke-Deploy {
         project  = $result.project
         url      = $result.url
         files    = $result.files
+        backend  = $result.backend
+        servingOk    = $result.servingOk
+        attempts     = $result.attempts
+        probeCode    = $result.probeCode
+        deploymentId = $result.deploymentId
+        deploymentShortId = $result.deploymentShortId
         meta     = $deployMeta
     }
 }

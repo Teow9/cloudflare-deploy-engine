@@ -59,3 +59,35 @@ jobs:
             }
           }
           Write-Host 'plugins.json schema 校验通过'
+
+  # ⑥ 发布打包（理念尺寸门禁：exe ≤ 5MB / templates ≤ 3MB / zip ≤ 10MB）
+  package:
+    runs-on: windows-latest
+    needs: windows
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装依赖并拉取 Neutralino 运行时/客户端库
+        run: |
+          npm ci
+          npx neu update
+
+      - name: ⑥ 发布流水线（测试已在 windows 作业覆盖，此处仅构建 + 尺寸门禁 + 打包）
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev\build-release.ps1 -SkipTests
+
+      - name: 上传分发物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            dist\*.zip
+            dist\SHA256.txt
+            dist\size-report.json
+          if-no-files-found: error

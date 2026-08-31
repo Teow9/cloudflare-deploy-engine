@@ -4,6 +4,10 @@ data/
 node_modules/
 bin/
 .neu/
+dist/
+resources/
+js/
+.tmp/
 app/js/neutralino.js
 app/resources/
 *.exe

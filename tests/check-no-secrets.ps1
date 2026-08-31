@@ -19,7 +19,8 @@ $patterns = @(
 $allowedFakeUuids = @('aa55ec46-5085-4e05-8ae2-df2641f57fe2')
 
 # 只忽略运行时/构建产物目录；config/deploy 不再豁免
-$excludeDirs = @('data', '.git', '.neu', 'node_modules', 'bin', 'Temporary file')
+# js/ resources/ = neu 生成的客户端库（vendor，含 UUID 示例串）；dist/ = 构建产物
+$excludeDirs = @('data', '.git', '.neu', 'node_modules', 'bin', 'dist', 'js', 'resources', '.tmp', 'Temporary file')
 $textExtensions = @('.md', '.txt', '.ps1', '.psd1', '.json', '.yml', '.yaml', '.html', '.css', '.js', '.xml', '.example')
 
 $files = Get-ChildItem -LiteralPath $Root -Recurse -File -Force |
