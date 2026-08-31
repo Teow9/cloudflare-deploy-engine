@@ -19,6 +19,8 @@ param(
     [string]$SourceArgsB64 = '',
     [string]$Project = '',
     [ValidateSet('native', 'wrangler')][string]$Backend = 'native',
+    [ValidateSet('pages', 'workers')][string]$TargetId = 'pages',
+    [switch]$WorkerSubdomain,
     [string]$FromHistory = '',
     [switch]$DryRun,
     [switch]$ListPlugins,
@@ -101,7 +103,7 @@ function Invoke-Deploy {
         Save-AppConfig -Path $ConfigPath -Config $cfg
     }
 
-    # ---- 4. 调用 targets/pages 插件 ----
+    # ---- 4. 调用 targets 插件（默认 pages，可选 workers） ----
     $targetArgs = @{
         ConfigPath = $ConfigPath
         SourceRoot = $sourceRoot
@@ -111,8 +113,9 @@ function Invoke-Deploy {
         EnvVars    = $envVars
         Backend    = $Backend
         Action     = 'deploy'
+        EnableSubdomain = [bool]$WorkerSubdomain
     }
-    $result = Invoke-Plugin -Axis 'targets' -Id 'pages' -PluginArgs $targetArgs
+    $result = Invoke-Plugin -Axis 'targets' -Id $TargetId -PluginArgs $targetArgs
 
     return @{
         deployed = (-not $DryRun)

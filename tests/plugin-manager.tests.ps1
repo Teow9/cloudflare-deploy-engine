@@ -9,15 +9,15 @@ Describe '插件注册表' {
         $reg.sources.Count | Should Be 4
         $reg.templates.Count | Should Be 5
         $reg.ai.Count | Should Be 1
-        $reg.targets.Count | Should Be 1
+        $reg.targets.Count | Should Be 2
     }
-    It 'Get-PluginList 枚举四轴（理念指标：sources×4/templates×5/ai×1/targets×1）' {
+    It 'Get-PluginList 枚举四轴（理念指标：sources×4/templates×5/ai×1/targets×2）' {
         $list = @(Get-PluginList)
-        $list.Count | Should Be 11
+        $list.Count | Should Be 12
         @($list | Where-Object { $_.axisKey -eq 'sources' }).Count | Should Be 4
         @($list | Where-Object { $_.axisKey -eq 'templates' }).Count | Should Be 5
         @($list | Where-Object { $_.axisKey -eq 'ai' }).Count | Should Be 1
-        @($list | Where-Object { $_.axisKey -eq 'targets' }).Count | Should Be 1
+        @($list | Where-Object { $_.axisKey -eq 'targets' }).Count | Should Be 2
     }
     It '未注册插件抛错' {
         { Get-PluginEntry -Axis sources -Id no-such-plugin } | Should Throw

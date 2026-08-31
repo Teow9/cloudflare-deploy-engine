@@ -17,6 +17,7 @@
     { "id": "openai-compatible", "enabled": true, "handler": "scripts/plugins/ai/ai-openai-compatible.ps1" }
   ],
   "targets": [
-    { "id": "pages", "enabled": true, "handler": "scripts/plugins/targets/target-pages.ps1" }
+    { "id": "pages",   "enabled": true, "handler": "scripts/plugins/targets/target-pages.ps1" },
+    { "id": "workers", "enabled": true, "handler": "scripts/plugins/targets/target-workers.ps1" }
   ]
 }
