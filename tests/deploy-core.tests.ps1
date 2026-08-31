@@ -52,4 +52,20 @@ Describe 'deploy-core DryRun 全链路' {
         $after = @(Read-DeployHistory).Count
         $after | Should Be $before
     }
+    It '-FromHistory 重放历史部署（DryRun，临时数据目录）' {
+        $old = $env:CDE_DATA_DIR
+        $tmpData = Join-Path $env:TEMP ("cde-fromhist-" + [guid]::NewGuid())
+        $env:CDE_DATA_DIR = $tmpData
+        try {
+            $null = Add-DeployHistory -Project 'hist-proj' -Template 'plain' -Parameters @{ site_title = '重放测试' } -Url 'https://hist-proj.pages.dev'
+            $r = Invoke-DeployCli -ExtraArgs @('-FromHistory', '0', '-DryRun')
+            $r.error | Should Be $null
+            $r.project | Should Be 'hist-proj'
+            $r.meta.template | Should Be 'plain'
+            $r.meta.parameters.site_title | Should Be '重放测试'
+        } finally {
+            if ($null -eq $old) { Remove-Item Env:CDE_DATA_DIR -ErrorAction SilentlyContinue } else { $env:CDE_DATA_DIR = $old }
+            Remove-Item -LiteralPath $tmpData -Force -Recurse -ErrorAction SilentlyContinue
+        }
+    }
 }

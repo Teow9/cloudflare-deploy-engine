@@ -7,10 +7,14 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">⚡ Cloudflare Deploy Engine</span>
+    <span class="brand" data-i18n="brand">⚡ Cloudflare Deploy Engine</span>
     <div class="top-right">
-      <span class="status" id="status">就绪</span>
-      <button id="btnCancel" class="ghost danger hidden">■ 取消任务</button>
+      <select id="langSel" class="lang-sel" title="Language">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
+      <span class="status" id="status" data-i18n="statusIdle">就绪</span>
+      <button id="btnCancel" class="ghost danger hidden" data-i18n="cancelTask">■ 取消任务</button>
     </div>
   </header>
 
@@ -18,78 +22,71 @@
     <!-- ============ 左：配置区 ============ -->
     <section class="panel left">
 
-      <h2>🔑 Cloudflare 凭证</h2>
-      <label>Account ID <input id="accountId" placeholder="xxxxxxxxxxxxxxxx" autocomplete="off"></label>
-      <label>Email <input id="email" type="email" placeholder="you@example.com" autocomplete="off"></label>
-      <label>API Token
-        <span class="secret-row">
-          <input id="apiToken" type="password" placeholder="cfut_..." autocomplete="off">
-          <button id="btnToggleToken" class="tiny" title="显示 / 隐藏">👁</button>
-        </span>
-      </label>
+      <h2 data-i18n="credTitle">🔑 Cloudflare 凭证</h2>
+      <label data-i18n="lblAccountId">Account ID</label>
+      <input id="accountId" placeholder="xxxxxxxxxxxxxxxx" autocomplete="off">
+      <label data-i18n="lblEmail">Email</label>
+      <input id="email" type="email" placeholder="you@example.com" autocomplete="off">
+      <label data-i18n="lblApiToken">API Token</label>
+      <span class="secret-row">
+        <input id="apiToken" type="password" placeholder="cfut_..." autocomplete="off">
+        <button id="btnToggleToken" class="tiny" title="显示 / 隐藏">👁</button>
+      </span>
       <div class="row">
-        <button id="btnSaveCred" class="primary">💾 加密保存</button>
-        <button id="btnLoadCred" class="ghost">加载</button>
-        <button id="btnClearCred" class="ghost danger">清除</button>
+        <button id="btnSaveCred" class="primary" data-i18n="btnSaveCred">💾 加密保存</button>
+        <button id="btnLoadCred" class="ghost" data-i18n="btnLoadCred">加载</button>
+        <button id="btnClearCred" class="ghost danger" data-i18n="btnClearCred">清除</button>
       </div>
       <div class="row">
-        <button id="btnExport" class="ghost tiny">📤 导出（换机迁移）</button>
-        <button id="btnImport" class="ghost tiny">📥 导入</button>
-        <button id="btnTokenGuide" class="ghost tiny">🔒 Token 权限指引</button>
+        <button id="btnExport" class="ghost tiny" data-i18n="btnExport">📤 导出（换机迁移）</button>
+        <button id="btnImport" class="ghost tiny" data-i18n="btnImport">📥 导入</button>
+        <button id="btnTokenGuide" class="ghost tiny" data-i18n="btnTokenGuide">🔒 Token 权限指引</button>
       </div>
-      <p class="hint">凭证经 Windows DPAPI 加密存于本机 data/config.enc.json，仅当前用户可解；删除文件夹即完全卸载。</p>
+      <p class="hint" data-i18n="credHint">凭证经 Windows DPAPI 加密存于本机 data/config.enc.json，仅当前用户可解；删除文件夹即完全卸载。</p>
 
-      <h2>🚀 部署</h2>
+      <h2 data-i18n="deployTitle">🚀 部署</h2>
       <div class="seg" id="modeSeg">
-        <button id="segTemplate" class="seg-btn active">内置模板</button>
-        <button id="segSource" class="seg-btn">自定义来源</button>
+        <button id="segTemplate" class="seg-btn active" data-i18n="segTemplate">内置模板</button>
+        <button id="segSource" class="seg-btn" data-i18n="segSource">自定义来源</button>
       </div>
 
       <!-- 模板模式 -->
       <div id="blockTemplate">
-        <label>模板
-          <select id="templateId" title="部署到本地展开目录的预构建模板"></select>
-        </label>
+        <label data-i18n="lblTemplate">模板</label>
+        <select id="templateId" title="部署到本地展开目录的预构建模板"></select>
         <div id="tplParams"></div>
       </div>
 
       <!-- 来源模式 -->
       <div id="blockSource" class="hidden">
-        <label>来源类型
-          <select id="sourceId">
-            <option value="local">📁 本地文件夹</option>
-            <option value="github">🐙 GitHub 仓库（codeload，零依赖）</option>
-            <option value="zip">📦 本地压缩包（zip/tar/tgz）</option>
-          </select>
-        </label>
+        <label data-i18n="lblSourceType">来源类型</label>
+        <select id="sourceId"></select>
         <div id="srcFields"></div>
       </div>
 
-      <label>项目名（决定 *.pages.dev 域名，留空自动派生）
-        <input id="projectName" placeholder="my-site" autocomplete="off">
-      </label>
+      <label data-i18n="lblProject">项目名（决定 *.pages.dev 域名，留空自动派生）</label>
+      <input id="projectName" placeholder="my-site" autocomplete="off">
 
       <div class="row">
-        <button id="btnDeploy" class="primary">🚀 部署</button>
-        <button id="btnDryRun" class="ghost">演练 DryRun</button>
-        <button id="btnDestroy" class="ghost danger">🗑 销毁项目</button>
+        <button id="btnDeploy" class="primary" data-i18n="btnDeploy">🚀 部署</button>
+        <button id="btnDryRun" class="ghost" data-i18n="btnDryRun">演练 DryRun</button>
+        <button id="btnDestroy" class="ghost danger" data-i18n="btnDestroy">🗑 销毁项目</button>
       </div>
 
-      <label class="inline">部署后端
+      <label class="inline"><span data-i18n="lblBackend">部署后端</span>
         <select id="backendSel">
           <option value="native">native（引擎直传 · 默认）</option>
           <option value="wrangler">wrangler（官方客户端 · 需自行安装）</option>
         </select>
       </label>
-      <p class="hint">首次部署建议先「演练 DryRun」验证配置，全程不触碰云端。</p>
+      <p class="hint" data-i18n="deployHint">首次部署建议先「演练 DryRun」验证配置，全程不触碰云端。</p>
 
-      <h2>✨ AI 智能部署（只回填，永不自动部署）</h2>
-      <label>用一句话描述需求
-        <textarea id="aiRequest" rows="3" placeholder="例：我想做一个个人博客，风格简洁，标题叫我的小站"></textarea>
-      </label>
+      <h2 data-i18n="aiTitle">✨ AI 智能部署（只回填，永不自动部署）</h2>
+      <label data-i18n="lblAiRequest">用一句话描述需求</label>
+      <textarea id="aiRequest" rows="3" placeholder="例：我想做一个个人博客，风格简洁，标题叫我的小站"></textarea>
       <div class="row">
-        <button id="btnAi" class="ghost">✨ 生成方案并回填</button>
-        <button id="btnAiSettings" class="ghost">⚙ AI 设置</button>
+        <button id="btnAi" class="ghost" data-i18n="btnAi">✨ 生成方案并回填</button>
+        <button id="btnAiSettings" class="ghost" data-i18n="btnAiSettings">⚙ AI 设置</button>
       </div>
       <div id="aiSuggestion" class="suggestion hidden">
         <div class="sugg-head">🤖 生成方案
@@ -100,12 +97,16 @@
       </div>
     </section>
 
-    <!-- ============ 右：日志与结果 ============ -->
+    <!-- ============ 右：日志 / 结果 / 历史 ============ -->
     <section class="panel right">
-      <h2>📝 实时日志</h2>
+      <h2 data-i18n="logTitle">📝 实时日志</h2>
       <pre id="log" class="log"></pre>
-      <h2>📦 部署结果</h2>
+      <h2 data-i18n="resultTitle">📦 部署结果</h2>
       <div id="result" class="result">—</div>
+      <h2><span data-i18n="historyTitle">🗂 部署历史</span>
+        <button id="btnRefreshHistory" class="tiny ghost" data-i18n="btnRefreshHistory">刷新</button>
+      </h2>
+      <div id="historyList" class="history">—</div>
     </section>
   </main>
 
@@ -135,13 +136,14 @@
       <h2 class="modal-title" id="modalTitle"></h2>
       <div class="modal-body" id="modalBody"></div>
       <div class="modal-actions">
-        <button id="modalOk" class="primary">确定</button>
-        <button id="modalCancel" class="ghost">取消</button>
+        <button id="modalOk" class="primary" data-i18n="modalOk">确定</button>
+        <button id="modalCancel" class="ghost" data-i18n="modalCancel">取消</button>
       </div>
     </div>
   </div>
 
   <script src="/js/neutralino.js"></script>
+  <script src="/i18n.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

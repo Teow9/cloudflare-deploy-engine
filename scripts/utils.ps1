@@ -247,6 +247,7 @@ function Add-DeployHistory {
     param(
         [Parameter(Mandatory = $true)][string]$Project,
         [string]$Source = '',
+        [hashtable]$SourceArgs = @{},
         [string]$Template = '',
         [hashtable]$Parameters = @{},
         [string]$Url = '',
@@ -262,6 +263,7 @@ function Add-DeployHistory {
         timestamp    = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         project      = $Project
         source       = $Source
+        sourceArgs   = $SourceArgs
         template     = $Template
         parameters   = $Parameters
         url          = $Url

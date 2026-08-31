@@ -1,9 +1,8 @@
 // ============================================================
-// Cloudflare Deploy Engine —— 前端（M2 桌面 UI 全量版）
+// Cloudflare Deploy Engine —— 前端（M2 全量 + Phase2 历史/重部署/i18n/enum）
 // 通信：os.spawnProcess → powershell.exe（引擎脚本），stdout 逐行
 // 解析 LOG|ts|LEVEL|msg（实时滚动）与 RESULT|<json>（最终结果）。
-// 参数安全通道：JSON/文本一律 Base64(UTF-8) 传递（-ParamsB64 等），
-// 免疫 Windows 命令行引号剥离与编码问题。
+// 参数安全通道：JSON/文本一律 Base64(UTF-8) 传递（-ParamsB64 等）。
 // ============================================================
 
 let engineDir = '';
@@ -17,6 +16,7 @@ let templateMetas = {};      // id → meta（含 parameters）
 let plugins = [];            // ListPlugins：{axis,axisKey,id,enabled}
 let configState = null;      // config-manager get 的结果
 let aiState = { baseUrl: '', model: '', apiKey: '' };
+let historyCache = [];       // ListHistory：旧→新
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -25,7 +25,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function pathJoin(...parts) { return parts.join('\\'); }
 
 function b64u8(str) {
-  // UTF-8 安全 Base64 编码（TextEncoder → btoa）
   const bytes = new TextEncoder().encode(str);
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
@@ -40,21 +39,19 @@ function stamp() {
 }
 
 async function hasDir(p) {
-  // 用只读目录探测确认引擎根（filesystem.readDirectory 仅列目录，不读内容）
   try { await Neutralino.filesystem.readDirectory(p); return true; }
   catch (e) { return false; }
 }
 
 async function resolveEngineDir() {
-  // 引擎根解析优先级：
-  //  ① exe 同级（打包目录模式：exe + scripts/ 真实文件） ② resources 路径（neu run 开发模式）
+  // ① exe 同级（打包目录模式） ② resources 路径（neu run 开发模式）
   try {
     const exePath = await Neutralino.os.getPath('exe');
     const exeDir = exePath.substring(0, exePath.lastIndexOf('\\'));
     if (await hasDir(pathJoin(exeDir, 'scripts'))) return exeDir;
     const p = await Neutralino.os.getPath('resources');
     if (p && await hasDir(pathJoin(p, 'scripts'))) return p;
-    return exeDir; // 兜底：exe 同级
+    return exeDir;
   } catch (e) {
     const exePath = await Neutralino.os.getPath('exe');
     return exePath.substring(0, exePath.lastIndexOf('\\'));
@@ -70,6 +67,11 @@ function setStatus(text, cls) {
   el.className = 'status' + (cls ? ' ' + cls : '');
 }
 function showCancelBtn(show) { $('btnCancel').classList.toggle('hidden', !show); }
+
+function updateDynamicI18n() {
+  // i18n.applyLang 回调：重置怠速状态文案
+  if (!running) setStatus(t('statusIdle'));
+}
 
 // ---------- 日志 ----------
 function appendLog(line) {
@@ -90,7 +92,7 @@ function showResultText(text, cls) {
 }
 
 // ---------- 引擎调用（可取消 + 看门狗超时） ----------
-const WATCHDOG_MS = 25 * 60 * 1000; // 25 分钟无结果自动终止
+const WATCHDOG_MS = 25 * 60 * 1000;
 
 function runEngine(args) {
   return new Promise((resolve, reject) => {
@@ -98,7 +100,7 @@ function runEngine(args) {
     running = true;
     cancelRequested = false;
     showCancelBtn(true);
-    setStatus('运行中…（可取消）', 'busy');
+    setStatus(t('running'), 'busy');
 
     const script = args.shift();
     const fullArgs = [
@@ -132,7 +134,7 @@ function runEngine(args) {
           const parsed = text.startsWith('RESULT|') ? parseResultLine(text) : null;
           if (parsed) {
             finalResult = parsed;
-            renderResult(parsed); // 结果先上屏，exit 后再 settle
+            renderResult(parsed);
           } else {
             appendLog(text);
           }
@@ -140,14 +142,14 @@ function runEngine(args) {
           appendLog('[stderr] ' + String(d.data).replace(/\r?\n$/, ''));
         } else if (d.action === 'exit') {
           if (cancelRequested) {
-            setStatus('已取消', 'fail');
+            setStatus(t('cancelled'), 'fail');
             settle(() => reject(new Error('任务已取消')));
           } else if (finalResult) {
-            setStatus('完成', 'done');
+            setStatus(t('done'), 'done');
             settle(() => resolve(finalResult));
           } else {
             const code = d.data;
-            setStatus('异常退出 · exit=' + code, 'fail');
+            setStatus(t('failed') + ' · exit=' + code, 'fail');
             settle(() => reject(new Error('引擎异常退出（exit=' + code + '），详见日志')));
           }
         }
@@ -163,7 +165,7 @@ function runEngine(args) {
     }).catch((e) => {
       running = false;
       showCancelBtn(false);
-      setStatus('启动失败', 'fail');
+      setStatus(t('failed'), 'fail');
       reject(e);
     });
   });
@@ -179,7 +181,7 @@ async function cancelRun() {
   if (!running || procId == null) return;
   cancelRequested = true;
   appendLog('✋ 正在取消…');
-  setStatus('取消中…', 'busy');
+  setStatus(t('cancelled') + '…', 'busy');
   try { await Neutralino.os.killProcess(procId); }
   catch (e) { appendLog('[warn] 终止进程失败：' + e); }
 }
@@ -200,12 +202,12 @@ function renderResult(obj) {
   if (obj.error) {
     el.classList.add('err');
     el.innerHTML = '<div class="err">❌ ' + esc(obj.error) + '</div>';
-    setStatus('失败', 'fail');
+    setStatus(t('failed'), 'fail');
     return;
   }
   let html = '<table>';
   if (obj.url) {
-    html += '<tr><td class="k">站点 URL</td><td><a href="' + esc(obj.url) + '" target="_blank">' + esc(obj.url) + '</a></td></tr>';
+    html += '<tr><td class="k">' + (obj.dryRun ? 'URL' : '站点 URL') + '</td><td><a href="' + esc(obj.url) + '" target="_blank">' + esc(obj.url) + '</a></td></tr>';
   }
   html += td('项目名', obj.project);
   if (obj.servingOk === true) {
@@ -223,12 +225,11 @@ function renderResult(obj) {
   if (obj.dryRun) html += '<tr><td class="k">模式</td><td class="warn">⚪ DryRun 演练（未触碰云端）</td></tr>';
   html += '</table>';
   el.innerHTML = html;
-  setStatus('完成', 'done');
+  setStatus(t('done'), 'done');
 }
 
 // ---------- 配置装载 / 首启 ----------
 async function isFirstRun() {
-  // 配置文件不存在 = 首次启动（首启遮罩：免责 + 条款）；存在 = 正常启动
   try {
     await Neutralino.filesystem.readFile(pathJoin(engineDir, 'data', 'config.enc.json'));
     return false;
@@ -258,6 +259,10 @@ async function loadConfig() {
       if (r.settings.pagesProject) $('projectName').value = r.settings.pagesProject;
       if (r.settings.lastTemplate && templates.some((t) => t.id === r.settings.lastTemplate)) {
         $('templateId').value = r.settings.lastTemplate;
+      }
+      // A5 参数记忆：上次部署的同模板参数回填
+      if (r.settings.lastTemplateParams && r.settings.lastTemplate === $('templateId').value) {
+        await renderTemplateParams(r.settings.lastTemplateParams);
       }
     }
     aiState = (r && r.ai) ? {
@@ -298,6 +303,25 @@ async function getTemplateMeta(id) {
   return templateMetas[id] || { parameters: [] };
 }
 
+function renderParamControl(p, v) {
+  // A4：type=enum → select；其余 → text input
+  if (p.type === 'enum' && Array.isArray(p.enum)) {
+    const sel = document.createElement('select');
+    for (const opt of p.enum) {
+      const o = document.createElement('option');
+      o.value = opt; o.textContent = opt;
+      sel.appendChild(o);
+    }
+    if (v !== undefined && p.enum.indexOf(v) >= 0) sel.value = v;
+    else sel.value = p.default !== undefined ? p.default : (p.enum[0] || '');
+    return sel;
+  }
+  const input = document.createElement('input');
+  input.dataset.param = p.name;
+  input.value = v === undefined ? '' : String(v);
+  return input;
+}
+
 async function renderTemplateParams(prefill) {
   const id = $('templateId').value;
   if (!id) { $('tplParams').innerHTML = '<p class="hint">暂无可用模板（检查 plugins.json）</p>'; return; }
@@ -305,21 +329,20 @@ async function renderTemplateParams(prefill) {
   const box = $('tplParams');
   box.innerHTML = '';
   for (const p of (meta.parameters || [])) {
-    const wrap = document.createElement('label');
-    wrap.className = 'dyn-field';
-    wrap.textContent = (p.label || p.name) + (p.type ? '（' + p.type + '）' : '');
-    const input = document.createElement('input');
-    input.dataset.param = p.name;
+    const label = document.createElement('label');
+    label.className = 'dyn-field';
+    label.textContent = (p.label || p.name) + (p.type ? '（' + p.type + '）' : '');
     const v = (prefill && prefill[p.name] !== undefined) ? prefill[p.name] : p.default;
-    input.value = v === undefined ? '' : String(v);
-    wrap.appendChild(input);
-    box.appendChild(wrap);
+    const ctl = renderParamControl(p, v);
+    ctl.dataset.param = p.name;
+    label.appendChild(ctl);
+    box.appendChild(label);
   }
 }
 
 function collectParams() {
   const out = {};
-  document.querySelectorAll('#tplParams input[data-param]').forEach((el) => {
+  document.querySelectorAll('#tplParams input[data-param], #tplParams select[data-param]').forEach((el) => {
     const v = el.value.trim();
     if (v !== '') out[el.dataset.param] = v;
   });
@@ -335,7 +358,6 @@ async function loadPlugins() {
 }
 
 function populateSourceSelect() {
-  // 来源下拉从插件注册表动态生成（只列已启用的 sources，禁用即不可选）
   const sel = $('sourceId');
   sel.innerHTML = '';
   const enabledSources = plugins.filter((p) => p.axisKey === 'sources' && p.enabled);
@@ -346,7 +368,7 @@ function populateSourceSelect() {
     sel.appendChild(opt);
     return;
   }
-  const labels = { local: '📁 本地文件夹', github: '🐙 GitHub 仓库（codeload，零依赖）', zip: '📦 本地压缩包（zip/tar/tgz）' };
+  const labels = { local: '📁 本地文件夹', github: '🐙 GitHub 仓库（codeload，零依赖）', gitlab: '🦊 GitLab 仓库', zip: '📦 本地压缩包（zip/tar/tgz）' };
   for (const p of enabledSources) {
     const opt = document.createElement('option');
     opt.value = p.id;
@@ -367,12 +389,12 @@ function renderSourceFields() {
       '<span class="src-browse"><input id="srcPath" placeholder="C:\\my-site" autocomplete="off">' +
       '<button id="btnBrowseDir" class="tiny" type="button">浏览…</button></span></label>';
     $('btnBrowseDir').onclick = browseFolder;
-  } else if (id === 'github') {
+  } else if (id === 'github' || id === 'gitlab') {
     box.innerHTML =
       '<label class="dyn-field">仓库地址' +
-      '<input id="gitUrl" placeholder="owner/repo 或 https://github.com/owner/repo" autocomplete="off"></label>' +
-      '<label class="dyn-field">分支 / Tag（留空 = main）' +
-      '<input id="gitRef" placeholder="main" autocomplete="off"></label>';
+      '<input id="gitUrl" placeholder="' + (id === 'github' ? 'owner/repo 或 https://github.com/owner/repo' : 'group/project 或 https://gitlab.com/group/project') + '" autocomplete="off"></label>' +
+      '<label class="dyn-field">分支 / Tag（留空 = 默认分支）' +
+      '<input id="gitRef" placeholder="' + (id === 'github' ? 'main' : 'main') + '" autocomplete="off"></label>';
   } else if (id === 'zip') {
     box.innerHTML =
       '<label class="dyn-field">压缩包路径' +
@@ -411,9 +433,9 @@ function collectSourceArgs() {
     if (!p) throw new Error('请填写本地文件夹路径');
     return { Path: p };
   }
-  if (id === 'github') {
+  if (id === 'github' || id === 'gitlab') {
     const u = $('gitUrl').value.trim();
-    if (!u) throw new Error('请填写 GitHub 仓库地址');
+    if (!u) throw new Error('请填写仓库地址');
     const args = { Url: u };
     const ref = $('gitRef').value.trim();
     if (ref) args.Ref = ref;
@@ -437,7 +459,6 @@ function wireCredential() {
       await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)]);
     }
     appendLog('LOG|---|INFO|凭证已加密保存（DPAPI）');
-    setStatus('凭证已保存', 'done');
   };
 
   $('btnLoadCred').onclick = async () => {
@@ -524,8 +545,8 @@ function buildDeployArgs(dryRun) {
 function wireDeploy() {
   $('btnDeploy').onclick = async () => {
     try {
-      const args = buildDeployArgs(false);
-      await runEngine(args);
+      await runEngine(buildDeployArgs(false));
+      await loadHistory();
     } catch (e) {
       showResultText('❌ ' + e.message, 'err');
     }
@@ -533,8 +554,7 @@ function wireDeploy() {
 
   $('btnDryRun').onclick = async () => {
     try {
-      const args = buildDeployArgs(true);
-      await runEngine(args);
+      await runEngine(buildDeployArgs(true));
     } catch (e) {
       showResultText('❌ ' + e.message, 'err');
     }
@@ -545,7 +565,70 @@ function wireDeploy() {
     if (!proj) { alert('未找到项目名：请先填写项目名或先部署一次'); return; }
     if (!confirm('确认删除 Pages 项目「' + proj + '」？此操作不可撤销，站点将下线。')) return;
     await runEngine(['destroy.ps1', '-ConfigPath', getConfigPath(), '-Project', proj, '-Force']);
+    await loadHistory();
   };
+}
+
+// ---------- 历史（蓝图 §4.2 + A9 回滚务实版） ----------
+async function loadHistory() {
+  const r = await runEngine(['deploy-core.ps1', '-ListHistory']);
+  if (!r || r.error) { appendLog('[warn] 历史读取失败：' + (r ? r.error : '无响应')); return; }
+  historyCache = r.history || [];
+  renderHistory();
+}
+
+function renderHistory() {
+  const box = $('historyList');
+  box.innerHTML = '';
+  if (historyCache.length === 0) { box.textContent = '—'; return; }
+  const last = historyCache.length - 1;
+  historyCache.slice().reverse().forEach((rec, ri) => {
+    const idx = last - ri;   // 数组下标（0=最新，与 -FromHistory 语义一致）
+    const row = document.createElement('div');
+    row.className = 'hist-row' + (rec.status === 'failed' ? ' failed' : '');
+    const info = document.createElement('span');
+    info.className = 'hist-main';
+    let badge = '';
+    if (rec.servingOk === true) badge = ' <span class="ok">✅</span>';
+    else if (rec.status === 'failed') badge = ' <span class="err">✗</span>';
+    info.innerHTML = '<b>' + esc(rec.project || '?') + '</b> · ' +
+      esc(rec.template || rec.source || '') + ' · ' + esc(rec.timestamp) + badge;
+    const actions = document.createElement('span');
+    actions.className = 'hist-actions';
+    const bLog = document.createElement('button');
+    bLog.className = 'tiny ghost';
+    bLog.textContent = t('viewLog');
+    bLog.onclick = () => showLogModal(rec);
+    const bRed = document.createElement('button');
+    bRed.className = 'tiny ghost';
+    bRed.textContent = t('btnRedeploy');
+    bRed.onclick = () => redeployFromHistory(rec, idx);
+    actions.appendChild(bLog);
+    actions.appendChild(bRed);
+    row.appendChild(info);
+    row.appendChild(actions);
+    box.appendChild(row);
+  });
+}
+
+async function showLogModal(rec) {
+  let body = '<p class="hint">' + esc(rec.logFile || '无日志文件') + '</p>';
+  if (rec.logFile) {
+    try {
+      const text = await Neutralino.filesystem.readFile(rec.logFile);
+      body = '<pre class="log" style="max-height:40vh;min-height:200px">' + esc(text) + '</pre>';
+    } catch (e) {
+      body = '<p class="err">日志读取失败：' + esc(e) + '</p>';
+    }
+  }
+  openModal('📄 ' + esc(rec.project) + ' · ' + esc(rec.timestamp), body, null, t('modalOk'));
+}
+
+function redeployFromHistory(rec, idx) {
+  if (!confirm('重新部署该版本（' + rec.project + '）？部署成功后将成为最新版本。')) return;
+  runEngine(['deploy-core.ps1', '-ConfigPath', getConfigPath(), '-FromHistory', String(idx), '-Backend', $('backendSel').value])
+    .then(() => loadHistory())
+    .catch((e) => showResultText('❌ ' + e.message, 'err'));
 }
 
 // ---------- AI ----------
@@ -562,7 +645,6 @@ function wireAi() {
     $('aiExplanation').textContent = r.explanation || '';
     $('aiMeta').textContent = '模板：' + r.template + (r.projectName ? ' ｜ 建议项目名：' + r.projectName : '') + ' ｜ 模型：' + (r.model || '');
     $('aiSuggestion').classList.remove('hidden');
-    // 回填（可编辑）
     if (templates.some((t) => t.id === r.template)) {
       $('templateId').value = r.template;
       await renderTemplateParams(r.parameters || {});
@@ -588,9 +670,7 @@ function wireAi() {
         if (!baseUrl || !model) { alert('BaseUrl 与模型必填'); return; }
         aiState = { baseUrl: baseUrl, model: model, apiKey: apiKey };
         okBtn.disabled = true;
-        const ops = [
-          ['aiBaseUrl', baseUrl], ['aiModel', model]
-        ];
+        const ops = [['aiBaseUrl', baseUrl], ['aiModel', model]];
         if (apiKey) ops.push(['aiApiKey', apiKey]);
         for (const [f, v] of ops) {
           await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)]);
@@ -623,7 +703,7 @@ function openModal(title, bodyHtml, okHandler, okText) {
   $('modalTitle').textContent = title;
   $('modalBody').innerHTML = bodyHtml;
   const ok = $('modalOk');
-  ok.textContent = okText || '确定';
+  ok.textContent = okText || t('modalOk');
   modalOkHandler = okHandler;
   $('modal').classList.remove('hidden');
   const first = $('modalBody').querySelector('input, textarea');
@@ -659,21 +739,15 @@ function wireFirstRun() {
   };
   $('firstRunTokenGuide').onclick = (e) => {
     e.preventDefault();
-    closeFirstRunGuard();
     openTokenGuide();
   };
-}
-
-// 首启遮罩下打开指引后，先隐藏遮罩（指引在通用模态层）
-function closeFirstRunGuard() {
-  // 指引关闭后不再强制首启（配置将随后创建）
 }
 
 // ---------- 初始化 ----------
 async function init() {
   await Neutralino.init();
   engineDir = await resolveEngineDir();
-  setStatus('就绪 · 引擎：' + engineDir);
+  setStatus(t('statusIdle') + ' · 引擎：' + engineDir);
 
   wire();
   wireCredential();
@@ -686,6 +760,9 @@ async function init() {
   $('btnImport').onclick = openImport;
   $('btnTokenGuide').onclick = openTokenGuide;
   $('btnCancel').onclick = cancelRun;
+  $('btnRefreshHistory').onclick = loadHistory;
+  $('langSel').value = curLang;
+  $('langSel').onchange = () => setLang($('langSel').value);
 
   $('modalOk').onclick = async () => {
     if (modalOkHandler) await modalOkHandler($('modalOk'));
@@ -695,7 +772,8 @@ async function init() {
 
   await loadPlugins();
   await loadTemplates();
-  await loadConfig(); // 内部判断首启：显示遮罩或装载配置
+  await loadConfig();
+  await loadHistory();
 }
 
 function wire() {

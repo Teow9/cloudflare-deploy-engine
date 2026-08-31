@@ -19,6 +19,7 @@ param(
     [string]$SourceArgsB64 = '',
     [string]$Project = '',
     [ValidateSet('native', 'wrangler')][string]$Backend = 'native',
+    [string]$FromHistory = '',
     [switch]$DryRun,
     [switch]$ListPlugins,
     [switch]$ListTemplates,
@@ -57,6 +58,7 @@ function Invoke-Deploy {
     $kvRequired = $false
     $envVars = @{}
     $deployMeta = @{}
+    $sourceArgs = @{}
 
     if ($TemplateId) {
         Write-LogLine -Level INFO -Message "使用模板：$TemplateId"
@@ -74,14 +76,13 @@ function Invoke-Deploy {
         if ($meta.cloudflare.env) { $envVars = @{}; foreach ($p in $meta.cloudflare.env.PSObject.Properties) { $envVars[$p.Name] = $p.Value } }
         $deployMeta = @{ template = $TemplateId; parameters = $merged }
     } else {
-        $sourceArgs = @{}
         if ($SourceArgsJson) {
             $parsedSrc = $SourceArgsJson | ConvertFrom-Json -ErrorAction Stop
             foreach ($p in $parsedSrc.PSObject.Properties) { $sourceArgs[$p.Name] = $p.Value }
         }
         $src = Invoke-Plugin -Axis 'sources' -Id $SourceId -PluginArgs $sourceArgs
         $sourceRoot = $src.root
-        $deployMeta = @{ source = $SourceId }
+        $deployMeta = @{ source = $SourceId; sourceArgs = $sourceArgs }
     }
 
     # ---- 2. 项目名解析（param > config > 派生） ----
@@ -145,6 +146,36 @@ try {
         exit 0
     }
 
+    # ---- 从历史重放部署（A9：回滚务实版；-FromHistory 序号或时间戳） ----
+    if ($FromHistory) {
+        $hist = @(Read-DeployHistory)
+        $rec = $null
+        if ($FromHistory -match '^\d+$') {
+            $idx = [int]$FromHistory
+            if ($idx -lt 0 -or $idx -ge $hist.Count) { throw "历史序号越界：$idx（共 $($hist.Count) 条，0=最新）" }
+            $rec = $hist[$idx]
+        } else {
+            $found = @($hist | Where-Object { $_.timestamp -eq $FromHistory })
+            if ($found.Count -eq 0) { throw "未找到时间戳 $FromHistory 的历史记录" }
+            $rec = $found[0]
+        }
+        if ($rec.template) {
+            if (-not $TemplateId) { $TemplateId = [string]$rec.template }
+            if (-not $ParamsJson -and $rec.parameters) {
+                $ParamsJson = $rec.parameters | ConvertTo-Json -Compress -Depth 5
+            }
+        } elseif ($rec.source) {
+            if (-not $SourceId) { $SourceId = [string]$rec.source }
+            if (-not $SourceArgsJson -and $rec.sourceArgs) {
+                $SourceArgsJson = $rec.sourceArgs | ConvertTo-Json -Compress -Depth 5
+            }
+        } else {
+            throw '历史记录缺少 template/source 信息，无法重放'
+        }
+        if (-not $Project -and $rec.project) { $Project = [string]$rec.project }
+        Write-LogLine -Level INFO -Message ("从历史重放部署（{0}：{1}）" -f $rec.timestamp, $(if ($rec.template) { $rec.template } else { $rec.source }))
+    }
+
     # ---- 运行锁 + 日志落盘 + 部署历史（蓝图 §4.2） ----
     Lock-Deploy
     Clear-StaleCache
@@ -158,8 +189,8 @@ try {
         $historyProject = $result.project
         if (-not $DryRun) {
             $m = $result.meta
-            Add-DeployHistory -Project $result.project -Source $m.source -Template $m.template `
-                -Parameters $m.parameters -Url $result.url -Status 'ok' `
+            Add-DeployHistory -Project $result.project -Source $m.source -SourceArgs $m.sourceArgs `
+                -Template $m.template -Parameters $m.parameters -Url $result.url -Status 'ok' `
                 -ServingOk ([bool]$result.servingOk) -Attempts ([int]$result.attempts) `
                 -Backend $result.backend -DeploymentId $result.deploymentId -LogFile $logFile
         }

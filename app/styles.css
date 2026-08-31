@@ -76,6 +76,23 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .sugg-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #bfdbfe; }
 .suggestion .hint { color: #93c5fd; }
 
+/* 部署历史 */
+.lang-sel { width: auto; margin: 0; padding: 4px 8px; font-size: 0.8rem; }
+.history {
+  margin-top: 8px; background: #0b1120; border: 1px solid #334155; border-radius: 8px;
+  padding: 8px; font-size: 0.78rem; max-height: 180px; overflow-y: auto;
+}
+.hist-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 5px 6px; border-bottom: 1px solid #1e293b; flex-wrap: wrap;
+}
+.hist-row:last-child { border-bottom: none; }
+.hist-row.failed { background: rgba(248, 113, 113, 0.08); }
+.hist-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.hist-row .ok { color: #4ade80; }
+.hist-row .err { color: #f87171; }
+
 /* 日志与结果 */
 .log {
   flex: 1; background: #0b1120; border: 1px solid #334155; border-radius: 8px;
