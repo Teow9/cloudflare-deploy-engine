@@ -56,3 +56,16 @@ Describe '项目名规范化' {
         { ConvertTo-ProjectSlug '!!!' } | Should Throw
     }
 }
+
+Describe '相对路径（8.3 短名免疫，GH runner CI 回归）' {
+    It '常规路径前缀匹配' {
+        ConvertTo-RelativePath -Base 'C:\site\src' -FullName 'C:\site\src\index.html' | Should Be 'index.html'
+        ConvertTo-RelativePath -Base 'C:\site\src' -FullName 'C:\site\src\assets\app.js' | Should Be 'assets/app.js'
+    }
+    It '短名 Base + 长名 FullName（RUNNER~1 vs runneradmin）' {
+        ConvertTo-RelativePath -Base 'C:\Users\RUNNER~1\AppData\Local\Temp\site-x' `
+            -FullName 'C:\Users\runneradmin\AppData\Local\Temp\site-x\index.html' | Should Be 'index.html'
+        ConvertTo-RelativePath -Base 'C:\Users\RUNNER~1\AppData\Local\Temp\site-x' `
+            -FullName 'C:\Users\runneradmin\AppData\Local\Temp\site-x\assets\app.js' | Should Be 'assets/app.js'
+    }
+}

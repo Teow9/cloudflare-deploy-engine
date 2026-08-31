@@ -150,7 +150,7 @@ function New-FileRecords {
     if (-not (Test-Path -LiteralPath $SourceRoot)) { throw "待部署目录不存在：$SourceRoot" }
     $records = @()
     foreach ($f in @(Get-ChildItem -LiteralPath $SourceRoot -Recurse -File)) {
-        $rel = $f.FullName.Substring($SourceRoot.Length).TrimStart('\', '/') -replace '\\', '/'
+        $rel = ConvertTo-RelativePath -Base $SourceRoot -FullName $f.FullName
         if ($rel -match '[ "]') { throw "文件名包含空格或引号，暂不支持直传：$rel" }
         $records += [PSCustomObject]@{
             rel         = $rel

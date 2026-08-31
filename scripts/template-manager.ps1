@@ -71,7 +71,7 @@ function Expand-TemplateParams {
     $textExts = @('.html', '.htm', '.css', '.js', '.mjs', '.json', '.md', '.txt', '.xml', '.svg', '.yaml', '.yml', '.toml')
     $files = @(Get-ChildItem -LiteralPath $TemplateDir -Recurse -File | Where-Object { $_.Name -ne 'template.json' })
     foreach ($f in $files) {
-        $rel = $f.FullName.Substring($TemplateDir.Length).TrimStart('\', '/')
+        $rel = ConvertTo-RelativePath -Base $TemplateDir -FullName $f.FullName
         $dest = Join-Path $OutDir $rel
         $destDir = Split-Path -Parent $dest
         if (-not (Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }

@@ -332,3 +332,26 @@ function ConvertTo-ProjectSlug {
     if (-not $slug) { throw "无法从 '$Name' 生成合法项目名" }
     return $slug
 }
+
+function ConvertTo-RelativePath {
+    # 计算 FullName 相对 Base 的路径（以 '/' 分隔），免疫 8.3 短名/长名混用：
+    #   GH runner 的 TEMP 是短名（RUNNER~1），Get-ChildItem 子项 FullName 是长名，
+    #   直接 Substring(Base.Length) 会截串（CI 实测 rel 残留 'c35/' 前缀）。
+    # 策略：① 前缀精确匹配 ② 按叶段（Leaf）定位其后内容 ③ 兜底原 Substring。
+    param(
+        [Parameter(Mandatory = $true)][string]$Base,
+        [Parameter(Mandatory = $true)][string]$FullName
+    )
+    $base = $Base.TrimEnd('\', '/')
+    if ($FullName.StartsWith($base, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return ($FullName.Substring($base.Length).TrimStart('\', '/') -replace '\\', '/')
+    }
+    $leaf = Split-Path -Leaf $base
+    $marker = '\' + $leaf + '\'
+    $idx = $FullName.LastIndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase)
+    if ($idx -ge 0) {
+        return ($FullName.Substring($idx + $marker.Length) -replace '\\', '/')
+    }
+    # 兜底
+    return (($FullName.Substring($base.Length).TrimStart('\', '/')) -replace '\\', '/')
+}
