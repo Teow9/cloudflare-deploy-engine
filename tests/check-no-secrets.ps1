@@ -21,13 +21,16 @@ $allowedFakeUuids = @('aa55ec46-5085-4e05-8ae2-df2641f57fe2')
 # 只忽略运行时/构建产物目录；config/deploy 不再豁免
 # js/ resources/ = neu 生成的客户端库（vendor，含 UUID 示例串）；dist/ = 构建产物
 $excludeDirs = @('data', '.git', '.neu', 'node_modules', 'bin', 'dist', 'js', 'resources', '.tmp', 'Temporary file')
+# 任意层级的 node_modules / dist（templates-src/*/node_modules 等构建产物）一律豁免
+$excludeSeg = '(^|[\\/])(node_modules|dist)([\\/]|$)'
 $textExtensions = @('.md', '.txt', '.ps1', '.psd1', '.json', '.yml', '.yaml', '.html', '.css', '.js', '.xml', '.example')
 
 $files = Get-ChildItem -LiteralPath $Root -Recurse -File -Force |
     Where-Object {
         $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
         $top = ($rel -split '[\\/]')[0]
-        $excludeDirs -notcontains $top -and $rel -notmatch 'pnpm-lock|package-lock' -and
+        $excludeDirs -notcontains $top -and $rel -notmatch $excludeSeg -and
+        $rel -notmatch 'pnpm-lock|package-lock' -and
         $textExtensions -contains $_.Extension.ToLower()
     }
 

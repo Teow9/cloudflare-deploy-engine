@@ -12,14 +12,14 @@
 | 万物皆插件 | `plugins.json` 四轴注册（sources/templates/ai/targets）+ 统一分发 | `Get-PluginList` 枚举四轴 ≥ 全部内置插件可调用 |
 | 降低使用成本 | 一键部署 + AI 回填表单（永不自动部署）+ 删除文件夹即卸载 | 全新机器下载→部署 ≤ 15 分钟 |
 
-## 当前状态（M2–M5 完成，MVP 可发布）
+## 当前状态（M0–M6 全部实施完毕，MVP 可发布）
 
-- ✅ 引擎层：`utils`（DPAPI/口令加密/脱敏）、`config-manager`（加解密存取/导出导入迁移）、`plugin-manager`（四轴注册分发）、`template-manager`（参数展开）、`deploy-core`（通用部署管线）、`destroy`、`ai-bridge`
-- ✅ 插件：sources×3（local/github/zip）、templates×2（plain/astro-site）、ai×1（openai-compatible）、targets×1（pages）
-- ✅ M2 桌面 UI：来源/模板动态表单、项目名、取消与看门狗、导出/导入向导、Token 权限指引、首启免责流程、AI 设置持久化、`servingOk/attempts` 结果卡片
-- ✅ M4 AI：设置面板（baseUrl/model/apiKey DPAPI 加密）+ 需求→方案回填（永不自动部署）
-- ✅ M5 发布：`build-release.ps1` 门禁（语法/Pester/密扫/尺寸 ≤5MB+≤3MB+≤10MB）、zip+SHA256、CI 打包作业、`residue-scan` 零残留验收、使用教程/模板开发指南/手工验收矩阵
-- 🚧 待办：干净虚拟机无 Node 验收（A9/E4）、交互桌面目测（D2–D4）、GitHub 仓库推送后首跑 CI
+- ✅ 引擎层：`utils`（DPAPI/口令加密/脱敏/部署历史/日志落盘/运行锁/缓存清理）、`config-manager`（加解密/迁移/导出导入）、`plugin-manager`（四轴注册分发）、`template-manager`（参数展开/枚举）、`deploy-core`（管线/-FromHistory 回滚重放/-TargetId）、`destroy`、`ai-bridge`（重试）、`market`（插件市场）
+- ✅ 插件：sources×4（local/github/gitlab/zip）、templates×5（plain/astro-site/react-vite/docs-site/nav-site）、ai×1（openai-compatible）、targets×2（pages/workers）
+- ✅ M2 UI：来源/模板动态表单、项目名、取消与看门狗、导出/导入向导、Token 指引、首启流程、AI 设置持久化、servingOk 结果卡片、历史视图/日志/重部署
+- ✅ M4 AI：设置面板 + 需求→方案回填（永不自动部署）
+- ✅ M5/M6：build-release 门禁（语法/Pester/密扫/模板完整性/尺寸 ≤5+≤3+≤10MB）、zip+SHA256+内容断言、CI 六作业、residue-scan 零残留、ADR-008、i18n 中英、插件市场（安装/卸载/SHA256 校验）、target-workers 直传
+- 🚧 外部验证：干净无 Node 虚拟机（A9/E4）、桌面目测（D2–D4）、GitHub 推送后 CI 首跑（见 `docs/手工验收矩阵.md`）
 
 ## 目录结构
 

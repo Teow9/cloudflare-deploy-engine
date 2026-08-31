@@ -64,7 +64,7 @@ New-Item -ItemType Directory -Path (Join-Path $Root 'resources\js') -Force | Out
 Copy-Item (Join-Path $Root 'app\*') (Join-Path $Root 'resources') -Force -Recurse
 Copy-Item (Join-Path $Root 'js\*') (Join-Path $Root 'resources\js') -Force
 
-Assert-Gate '④ Neutralino 打包（neu build）' {
+Assert-Gate '⑤ Neutralino 打包（neu build）' {
     & npx --no-install @neutralinojs/neu build
 }
 
