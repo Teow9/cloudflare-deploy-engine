@@ -35,10 +35,18 @@ foreach ($key in @(
     if (Test-Path -LiteralPath $key) { $found += $key }
 }
 
-# ③ 系统 TEMP 中的本应用痕迹（运行时 .tmp/auth_info.json 随目录删除；TEMP 不应残留）
+# ③ 系统 TEMP 中的本应用痕迹
+#    应用只写 cde-body-*.json 临时【文件】（New-TempJsonFile，finally 随用随删），不写目录；
+#    TEMP 下 cde-* 目录属单测/调试产物，不算应用残留（另行提示清理）。
 if ($env:TEMP) {
     $found += @(Get-ChildItem -LiteralPath $env:TEMP -Directory -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -match '^neutralino|cloudflare-deploy|cde-' } | ForEach-Object { $_.FullName })
+                Where-Object { $_.Name -match '^neutralino|cloudflare-deploy' } | ForEach-Object { $_.FullName })
+    $testLitter = @(Get-ChildItem -LiteralPath $env:TEMP -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^cde-' } | ForEach-Object { $_.FullName })
+    if ($testLitter.Count -gt 0) {
+        Write-Host ("提示：TEMP 存在 {0} 个 cde-* 测试/调试目录（非应用残留），可清理：{1}" -f
+            $testLitter.Count, ($testLitter | Select-Object -First 3) -join '；')
+    }
 }
 
 # ④ 本应用目录内的运行时文件（随目录删除 = 无残留；仅列示）

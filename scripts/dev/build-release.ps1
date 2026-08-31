@@ -69,13 +69,21 @@ Assert-Gate '⑤ Neutralino 打包（neu build）' {
 }
 
 # ---------- 3. 装配引擎文件（exe + resources.neu + 引擎真实文件） ----------
-Copy-Item (Join-Path $Root 'scripts') (Join-Path $AppDir 'scripts') -Force -Recurse
-Copy-Item (Join-Path $Root 'templates') (Join-Path $AppDir 'templates') -Force -Recurse
-Copy-Item (Join-Path $Root 'plugins.json') (Join-Path $AppDir 'plugins.json') -Force
-Copy-Item (Join-Path $Root 'README.md') (Join-Path $AppDir 'README.md') -Force
-Copy-Item (Join-Path $Root '使用说明.md') (Join-Path $AppDir '使用说明.md') -Force
-Copy-Item (Join-Path $Root 'docs\使用教程.md') (Join-Path $AppDir '使用教程.md') -Force
-Copy-Item (Join-Path $Root 'scripts\dev\start-zeroresidue.cmd') (Join-Path $AppDir 'start-zeroresidue.cmd') -Force
+# 幂等装配：先清空旧装配再复制（早期 Copy-Item 目录到已存在目标曾产生 scripts\scripts\ 嵌套，
+# 顶层残留旧版引擎——zip 内容断言会拦截，但清理是根治）。
+foreach ($junk in @('scripts', 'templates', 'plugins.json', 'README.md', '使用说明.md', '使用教程.md', 'start-zeroresidue.cmd')) {
+    $p = Join-Path $AppDir $junk
+    if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force -Recurse }
+}
+New-Item -ItemType Directory -Path (Join-Path $AppDir 'scripts') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $AppDir 'templates') -Force | Out-Null
+Copy-Item -Path (Join-Path $Root 'scripts\*') -Destination (Join-Path $AppDir 'scripts') -Recurse -Force
+Copy-Item -Path (Join-Path $Root 'templates\*') -Destination (Join-Path $AppDir 'templates') -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $Root 'plugins.json') (Join-Path $AppDir 'plugins.json') -Force
+Copy-Item -LiteralPath (Join-Path $Root 'README.md') (Join-Path $AppDir 'README.md') -Force
+Copy-Item -LiteralPath (Join-Path $Root '使用说明.md') (Join-Path $AppDir '使用说明.md') -Force
+Copy-Item -LiteralPath (Join-Path $Root 'docs\使用教程.md') (Join-Path $AppDir '使用教程.md') -Force
+Copy-Item -LiteralPath (Join-Path $Root 'scripts\dev\start-zeroresidue.cmd') (Join-Path $AppDir 'start-zeroresidue.cmd') -Force
 
 # 发布物严禁携带运行时数据：清除 AppDir 内 data/、.tmp/、日志（含 WebView2 缓存/配置/探针残留）
 foreach ($junk in @('data', '.tmp')) {
@@ -104,7 +112,8 @@ $zipMB = [Math]::Round((Get-Item -LiteralPath $zipPath).Length / 1MB, 2)
 Write-Host "分发物：$zipPath（${zipMB}MB，上限 10MB）"
 if ($zipMB -gt 10) { throw "尺寸门禁失败：zip ${zipMB}MB > 10MB" }
 
-# zip 内容断言：严禁混入运行时数据（data/ 配置、webview2 缓存、.tmp）
+# zip 内容断言：① 严禁混入运行时数据（data/ 配置、webview2 缓存、.tmp）
+#                ② 严禁嵌套目录（scripts\scripts\、templates\templates\——装配幂等性回归拦截）
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zipReader = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
 try {
@@ -114,10 +123,21 @@ try {
     if ($leaks.Count -gt 0) {
         throw "zip 内容断言失败：混入运行时数据！{0}" -f (($leaks.FullName | Select-Object -First 5) -join '；')
     }
+    $nested = @($zipReader.Entries | Where-Object { $_.FullName -match '(scripts|templates)[\\/]\1' })
+    if ($nested.Count -gt 0) {
+        throw "zip 内容断言失败：检测到嵌套目录（装配幂等性回归）！{0}" -f (($nested.FullName | Select-Object -First 3) -join '；')
+    }
+    # 关键文件存在性（防"旧版残留"回归）
+    foreach ($must in @('scripts\market.ps1', 'scripts\plugins\sources\source-gitlab.ps1',
+                        'scripts\plugins\targets\target-workers.ps1', 'templates\nav-site\template.json')) {
+        if (-not @($zipReader.Entries | Where-Object { $_.FullName -eq $must -or $_.FullName -like ($must + '*') }).Count) {
+            throw "zip 内容断言失败：缺少关键文件 $must"
+        }
+    }
 } finally {
     $zipReader.Dispose()
 }
-Write-Host 'zip 内容断言通过：无运行时数据混入。'
+Write-Host 'zip 内容断言通过：无运行时数据/无嵌套目录/关键文件齐备。'
 
 # ---------- 7. SHA256 校验文件 ----------
 $shaLines = @(

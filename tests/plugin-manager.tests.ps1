@@ -40,6 +40,13 @@ Describe '插件分发' {
         $meta.id | Should Be 'plain'
         $meta.parameters.Count | Should Be 2
     }
+    It 'CLI -ArgsB64 安全通道（引号/编码免疫回归）' {
+        $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('{}'))
+        $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $script:Root 'scripts\plugin-manager.ps1') -Axis templates -Id plain -ArgsB64 $b64 2>&1
+        $r = $out | Where-Object { $_ -match '^RESULT\|' } | Select-Object -First 1
+        $j = ($r -replace '^RESULT\|', '') | ConvertFrom-Json
+        $j.result.id | Should Be 'plain'
+    }
     It 'source-gitlab archive URL 解析（D4，多段路径）' {
         . (Join-Path $script:Root 'scripts\plugins\sources\source-gitlab.ps1')
         Resolve-GitlabArchiveUrl -Raw 'group/sub-group/project' -Ref 'main' |

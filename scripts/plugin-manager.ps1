@@ -104,6 +104,11 @@ if ($MyInvocation.InvocationName -ne '.') {
             '-Axis'     { $axis = $args[++$i] }
             '-Id'       { $id = $args[++$i] }
             '-ArgsJson' { $argsJson = $args[++$i] }
+            '-ArgsB64'  {
+                # 安全通道：JSON 经 Base64(UTF-8)，免疫命令行引号/编码剥离（同 deploy-core 契约）
+                try { $argsJson = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($args[++$i])) }
+                catch { throw 'ArgsB64 不是合法 Base64' }
+            }
             default     { Write-LogLine -Level WARN -Message "忽略未知参数：$($args[$i])" }
         }
     }

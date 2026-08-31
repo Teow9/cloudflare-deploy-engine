@@ -81,6 +81,7 @@ Describe '日志落盘（data/logs/）' {
     }
 }
 
-# 恢复环境变量，避免泄漏给同进程的后续测试文件
+# 恢复环境变量，避免泄漏给同进程的后续测试文件；并清理本文件产生的临时数据目录
 if ($null -eq $script:OldDataDir) { Remove-Item Env:CDE_DATA_DIR -ErrorAction SilentlyContinue }
 else { $env:CDE_DATA_DIR = $script:OldDataDir }
+Remove-Item -LiteralPath $script:TestData -Force -Recurse -ErrorAction SilentlyContinue
