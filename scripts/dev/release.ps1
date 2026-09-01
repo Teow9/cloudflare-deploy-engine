@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # release.ps1 —— 规范化发布唯一入口（docs/版本管理.md §3）
 # 流程：校验 CHANGELOG 版本段 → 创建并推送 tag vX.Y.Z →
 #       GitHub API 创建 Release（body=CHANGELOG 段）→ 上传资产
@@ -13,12 +13,20 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     [string]$Repo = 'Teow9/cloudflare-deploy-engine',
     [switch]$Draft,
+    [string]$Proxy = '',       # 网络受限环境必用：如 http://127.0.0.1:7897
     [switch]$Force
 )
 
 $ErrorActionPreference = 'Continue'   # git 的 stderr 进度在 Stop 下会误抛 NativeCommandError；各步均显式检查 $LASTEXITCODE
 $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Tag = 'v' + $Version
+
+function Invoke-CurlCmd {
+    # curl 统一入口：-Proxy 指定时走代理（网络受限环境），否则强制直连（--noproxy）
+    param([Parameter(ValueFromRemainingArguments = $true)][object[]]$CurlArgs)
+    if ($Proxy) { & curl.exe -x $Proxy @CurlArgs }
+    else { & curl.exe --noproxy '*' @CurlArgs }
+}
 
 if (-not $env:GH_PAT) { throw '缺少 GitHub Token：请设置环境变量 GH_PAT（禁止写入文件）' }
 
@@ -74,7 +82,7 @@ Write-Host "tag 已推送：$Tag"
 $apiBase = "https://api.github.com/repos/$Repo"
 $hdrAuth = "Authorization: Bearer $env:GH_PAT"
 $hdrJson = 'Accept: application/vnd.github+json'
-$existsRel = curl.exe -s --noproxy "*" -H $hdrAuth -H $hdrJson "$apiBase/releases/tags/$Tag" | ConvertFrom-Json
+$existsRel = Invoke-CurlCmd -s -H $hdrAuth -H $hdrJson "$apiBase/releases/tags/$Tag" | ConvertFrom-Json
 $relBody = @{
     tag_name = $Tag
     name     = "v$Version"
@@ -89,25 +97,19 @@ if ($existsRel.id) {
     $tmpBody = Join-Path $env:TEMP ("cde-rel-body-" + [guid]::NewGuid() + '.json')
     try {
         [System.IO.File]::WriteAllText($tmpBody, $relBody, (New-Object System.Text.UTF8Encoding($false)))
-        $rel = curl.exe -s --noproxy "*" -X PATCH -H $hdrAuth -H $hdrJson -H 'Content-Type: application/json' --data-binary ('@' + $tmpBody) "$apiBase/releases/$($existsRel.id)" | ConvertFrom-Json
+        $rel = Invoke-CurlCmd -s -X PATCH -H $hdrAuth -H $hdrJson -H 'Content-Type: application/json' --data-binary ('@' + $tmpBody) "$apiBase/releases/$($existsRel.id)" | ConvertFrom-Json
     } finally { Remove-Item -LiteralPath $tmpBody -Force -ErrorAction SilentlyContinue }
     Write-Host '更新既有 Release（-Force）'
 } else {
     $tmpBody = Join-Path $env:TEMP ("cde-rel-body-" + [guid]::NewGuid() + '.json')
     try {
         [System.IO.File]::WriteAllText($tmpBody, $relBody, (New-Object System.Text.UTF8Encoding($false)))
-        $rel = curl.exe -s --noproxy "*" -X POST -H $hdrAuth -H $hdrJson -H 'Content-Type: application/json' --data-binary ('@' + $tmpBody) "$apiBase/releases" | ConvertFrom-Json
+        $rel = Invoke-CurlCmd -s -X POST -H $hdrAuth -H $hdrJson -H 'Content-Type: application/json' --data-binary ('@' + $tmpBody) "$apiBase/releases" | ConvertFrom-Json
     } finally { Remove-Item -LiteralPath $tmpBody -Force -ErrorAction SilentlyContinue }
     if (-not $rel.id) { throw "Release 创建失败：$($rel | ConvertTo-Json -Compress)" }
 }
 Write-Host "Release：$($rel.html_url)"
 
-# ---------- 4. 上传资产（幂等：同名先删） ----------
-$assets = @(
-    @{ File = $zip;      Name = "Cloudflare-Deploy-Engine-v$Version.zip" },
-    @{ File = $shaFile;  Name = 'SHA256.txt' },
-    @{ File = $report;   Name = 'size-report.json' }
-)
 # ---------- 4. 上传资产（幂等：同名先删；端点为 uploads.github.com） ----------
 $upBase = "https://uploads.github.com/repos/$Repo/releases/$($rel.id)/assets"
 $assets = @(
@@ -116,15 +118,15 @@ $assets = @(
     @{ File = $report;   Name = 'size-report.json' }
 )
 foreach ($a in $assets) {
-    $list = curl.exe -s --noproxy "*" -H $hdrAuth -H $hdrJson "$apiBase/releases/$($rel.id)/assets?per_page=100" | ConvertFrom-Json
+    $list = Invoke-CurlCmd -s -H $hdrAuth -H $hdrJson "$apiBase/releases/$($rel.id)/assets?per_page=100" | ConvertFrom-Json
     foreach ($old in @($list)) {
         if ($old.name -eq $a.Name) {
-            curl.exe -s --noproxy "*" -X DELETE -H $hdrAuth -H $hdrJson "$apiBase/releases/assets/$($old.id)" | Out-Null
+            Invoke-CurlCmd -s -X DELETE -H $hdrAuth -H $hdrJson "$apiBase/releases/assets/$($old.id)" | Out-Null
         }
     }
     $up = $null
     for ($i = 1; $i -le 4 -and -not $up; $i++) {
-        $raw = curl.exe -s --noproxy "*" -X POST -H $hdrAuth -H "Accept: application/vnd.github+json" `
+        $raw = Invoke-CurlCmd -s -X POST -H $hdrAuth -H "Accept: application/vnd.github+json" `
             -H "Content-Type: application/octet-stream" --data-binary "@$($a.File)" `
             "$upBase?name=$($a.Name)"
         $obj = $raw | ConvertFrom-Json
