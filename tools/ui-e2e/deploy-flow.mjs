@@ -12,6 +12,9 @@ const TOKEN = process.env.CDE_E2E_TOKEN || '';
 const ACCOUNT = process.env.CDE_E2E_ACCOUNT || '';
 const EMAIL = process.env.CDE_E2E_EMAIL || 'tester@cde.local';
 const PROJECT = process.env.CDE_E2E_PROJECT || ('cde-e2e-ui' + Date.now().toString().slice(-6));
+const TEMPLATE = process.env.CDE_E2E_TEMPLATE || 'plain';
+let PARAMS = {};
+try { PARAMS = JSON.parse(process.env.CDE_E2E_PARAMS || '{}'); } catch (e) { log('params env parse fail: ' + e.message); }
 const NO_DESTROY = process.env.CDE_E2E_NO_DESTROY === '1';
 const QUICK = process.env.CDE_E2E_QUICK === '1';
 const LOG = BASE + '/driver.log';
@@ -129,8 +132,13 @@ try {
   results.steps.push({ step: 'configFileExists', value: fs.existsSync(BASE + '/app/data/config.enc.json') });
   log('configFileExists=' + results.steps[results.steps.length - 1].value);
 
-  // ---- 3. 模板清单已装载 + 项目名 ----
+  // ---- 3. 模板/参数选择 + 项目名 ----
   await step('templatesLoaded', `JSON.stringify({count:document.getElementById('templateId').options.length, first:document.getElementById('templateId').options[0]&&document.getElementById('templateId').options[0].textContent, value:document.getElementById('templateId').value})`);
+  await step('selectTemplate', `(()=>{const sel=document.getElementById('templateId');sel.value=${JSON.stringify(TEMPLATE)};sel.dispatchEvent(new Event('change'));return 'ok:${TEMPLATE}';})()`);
+  await sleep(2500);   // renderTemplateParams 异步填充参数控件
+  if (Object.keys(PARAMS).length) {
+    await step('fillParams', `(()=>{const want=${JSON.stringify(PARAMS)};let set=0;for(const [k,v] of Object.entries(want)){const el=document.querySelector('#tplParams [data-param="'+k+'"]');if(el){el.value=String(v);set++;}}return JSON.stringify({wanted:Object.keys(want).length,set});})()`);
+  }
   await step('setProject', `document.getElementById('projectName').value=${JSON.stringify(PROJECT)}; 'ok'`);
 
   // ---- 4. DryRun 演练（不触碰云端）----
