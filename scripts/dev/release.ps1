@@ -63,13 +63,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'git tag 创建失败' }
 
     # 一次性认证推送 tag（不落盘）；-Force 重建 tag 时强制推送
+    # （-Proxy 指定时 git 也走代理——网络受限环境直连 github.com 会间歇失败）
     $b64 = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("x-access-token:$env:GH_PAT"))
+    $gitNet = @()
+    if ($Proxy) { $gitNet = @('-c', "http.proxy=$Proxy") }
     $pushed = $false
     for ($i = 1; $i -le 5 -and -not $pushed; $i++) {
         if ($Force) {
-            & $git -c http.extraheader="AUTHORIZATION: basic $b64" push --force origin $Tag 2>&1 | Out-Null
+            & $git @gitNet -c http.extraheader="AUTHORIZATION: basic $b64" push --force origin $Tag 2>&1 | Out-Null
         } else {
-            & $git -c http.extraheader="AUTHORIZATION: basic $b64" push origin $Tag 2>&1 | Out-Null
+            & $git @gitNet -c http.extraheader="AUTHORIZATION: basic $b64" push origin $Tag 2>&1 | Out-Null
         }
         if ($LASTEXITCODE -eq 0) { $pushed = $true }
         else { Write-Host "tag 推送失败（第 $i 次，10s 后重试）"; Start-Sleep -Seconds 10 }

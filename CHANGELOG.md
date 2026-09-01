@@ -24,6 +24,7 @@
 - **引擎调用失败静默化**：保存凭证 / AI 设置 / 导出导入 / 市场安装卸载 / 市场 URL 保存 / 销毁 / 历史与清单加载等按钮在引擎异常时无任何反馈（部分卡死 disabled）；全部补上 try/catch 与可见错误提示
 - **引擎 stdout 编码加固**：`utils.ps1` 强制 `[Console]::OutputEncoding = UTF-8`，杜绝 PS5.1 OEM 代码页导致的中文日志乱码与 RESULT JSON 损坏
 - **构建期 BOM 防护**：非 ASCII `.ps1` 必须带 UTF-8 BOM（PS5.1 按 ANSI 读取导致语法崩溃，本次构建实测拦截）
+- **发布通道代理**：`release.ps1` 的 tag 推送未透传 `-Proxy`（直连 github.com 间歇失败），补上代理配置
 
 ### 测试
 - 打包 exe 真实 UI 冒烟（CDP 驱动，Windows WebView2 实测）：首启遮罩、绑定、DryRun、凭证保存、插件市场、历史刷新、JS 错误零报告
