@@ -32,16 +32,29 @@ function Invoke-Curl {
         return '{"success":true,"result":{"id":"deploy-123"}}'
     }
     if ($url -match '/pages/projects$') {
-        if ($argsArr -contains 'POST') { return '{"success":true,"result":{"id":"p1","name":"my-site"}}' }
+        if ($argsArr -contains 'POST') {
+            # 创建项目：登记到 mock 状态（后续 GET 可返回真实 subdomain）
+            $at = $argsArr | Where-Object { $_ -is [string] -and $_.StartsWith('@') -and $_.Length -gt 1 } | Select-Object -First 1
+            $name = 'my-site'
+            if ($at) { $body = (Get-Content -LiteralPath $at.Substring(1) -Raw -Encoding UTF8 | ConvertFrom-Json); if ($body.name) { $name = $body.name } }
+            $script:MockProjects[$name] = $true
+            return '{"success":true,"result":{"id":"p1","name":"my-site"}}'
+        }
         return '{"success":true,"result":[]}'
     }
-    if ($url -match '/pages/projects/[^/]+$') {
-        if ($argsArr -contains 'POST') { return '{"success":true,"result":{"id":"p1","name":"my-site"}}' }
-        if ($argsArr -contains 'DELETE') { return '{"success":true,"result":{"id":"p1"}}' }
+    if ($url -match '/pages/projects/([^/]+)$') {
+        $name = [regex]::Match($url, '/pages/projects/([^/]+)$').Groups[1].Value
+        if ($argsArr -contains 'POST') { $script:MockProjects[$name] = $true; return '{"success":true,"result":{"id":"p1","name":"my-site"}}' }
+        if ($argsArr -contains 'DELETE') { $script:MockProjects.Remove($name) | Out-Null; return '{"success":true,"result":{"id":"p1"}}' }
+        if ($script:MockProjects.ContainsKey($name)) {
+            # 创建后 GET 返回真实 subdomain（v0.1.3：结果 URL / 探针改用平台实际分配子域）
+            return (@{ success = $true; result = @{ name = $name; subdomain = "$name.pages.dev" } } | ConvertTo-Json -Compress)
+        }
         return '{"success":false,"errors":[{"code":1005,"message":"not found"}]}'
     }
     throw "mock 未覆盖的请求：$url"
 }
+$script:MockProjects = @{}
 
 # 探针 mock：测试内不触网，直接视为存活
 function Test-DeploymentUrl {

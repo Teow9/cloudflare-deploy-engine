@@ -1,1 +1,39 @@
-main { font-family: system-ui, sans-serif; max-width: 720px; margin: 4rem auto; padding: 0 1rem; line-height: 1.7; }
+/* Cloudflare Deploy Engine —— astro-site 中文技术博客样式 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #f7f8fa; --card: #ffffff; --ink: #1f2933; --muted: #64707d;
+  --accent: #2f6fed; --border: #e4e7eb; --radius: 10px;
+}
+body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.75; }
+.container { max-width: 860px; margin: 0 auto; padding: 0 1.25rem; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.site-header { background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+.header-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand { font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+.nav a { margin-left: 1.1rem; color: var(--muted); font-size: 0.95rem; }
+.nav a:hover { color: var(--accent); }
+
+.hero { padding: 3.2rem 0 2.2rem; }
+.hero h1 { font-size: 2.1rem; margin-bottom: 0.6rem; }
+.hero .sub { color: var(--muted); font-size: 1.05rem; }
+
+section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.6rem 1.8rem; margin-bottom: 1.4rem; }
+section h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+
+.post { padding: 0.9rem 0; border-bottom: 1px dashed var(--border); }
+.post:last-child { border-bottom: none; }
+.post-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.post h3 { font-size: 1.06rem; }
+.post p { color: var(--muted); font-size: 0.95rem; margin-top: 0.35rem; }
+.meta { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+
+.tags .tag { display: inline-block; background: #eef3fe; color: var(--accent); border-radius: 999px; padding: 0.15rem 0.85rem; margin: 0.2rem 0.35rem 0.2rem 0; font-size: 0.85rem; }
+
+.site-footer { border-top: 1px solid var(--border); margin-top: 1.6rem; padding: 1.4rem 0 2.2rem; color: var(--muted); font-size: 0.88rem; text-align: center; }
+
+@media (max-width: 640px) {
+  .header-inner { flex-direction: column; height: auto; padding: 0.8rem 0; gap: 0.4rem; }
+  .post-head { flex-direction: column; gap: 0.15rem; }
+}

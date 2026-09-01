@@ -3,13 +3,99 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{site_title}}</title>
+  <title>{{site_title}} · 技术博客</title>
+  <meta name="description" content="{{site_title}} —— 记录技术实践、工程经验与踩坑笔记">
   <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 </head>
 <body>
-  <main>
-    <h1>{{site_title}}</h1>
-    <p>本目录为 Astro 模板的预构建产物骨架，由 <code>templates-src/</code> 中的真实构建流程产出并校验（check-build-integrity）后放置于此。</p>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="/">{{site_title}}</a>
+      <nav class="nav">
+        <a href="/">首页</a>
+        <a href="#posts">文章</a>
+        <a href="#tags">标签</a>
+        <a href="#about">关于</a>
+        <a href="/rss.xml">RSS</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>{{site_title}}</h1>
+      <p class="sub">记录技术实践、工程经验与踩坑笔记 —— 由 Cloudflare Deploy Engine 一键部署。</p>
+    </section>
+
+    <section id="posts">
+      <h2>📝 最新文章</h2>
+      <article class="post">
+        <header class="post-head">
+          <h3><a href="#posts">前端工程化实践：从零搭建 Vite + TypeScript 工作流</a></h3>
+          <span class="meta">2026-08-30 · 前端</span>
+        </header>
+        <p>从脚手架到产物优化：拆解一个现代前端工程的核心配置，以及团队协作中的约定与自动化。</p>
+      </article>
+      <article class="post">
+        <header class="post-head">
+          <h3><a href="#posts">用 Neutralino.js 构建轻量桌面应用</a></h3>
+          <span class="meta">2026-08-25 · 桌面开发</span>
+        </header>
+        <p>不到 3MB 的 exe，零运行时依赖：WebView2 + 本地引擎的通信架构、参数安全通道与打包实践。</p>
+      </article>
+      <article class="post">
+        <header class="post-head">
+          <h3><a href="#posts">Cloudflare Pages 直传部署协议全解析</a></h3>
+          <span class="meta">2026-08-20 · 云原生</span>
+        </header>
+        <p>upload-token → check-missing → 资产上传 → manifest 建部署：两段式协议的逆向与工程化落地。</p>
+      </article>
+      <article class="post">
+        <header class="post-head">
+          <h3><a href="#posts">PowerShell 5.1 与 UTF-8 编码的十个坑</a></h3>
+          <span class="meta">2026-08-15 · 自动化</span>
+        </header>
+        <p>BOM、OEM 代码页、管道编码与 JSON 解析——脚本跨环境稳定输出的实战经验。</p>
+      </article>
+      <article class="post">
+        <header class="post-head">
+          <h3><a href="#posts">GitHub Actions 双作业 CI 的实践与踩坑</a></h3>
+          <span class="meta">2026-08-10 · DevOps</span>
+        </header>
+        <p>测试作业与打包作业的拆分、版本锁定、网络受限环境的离线构建策略。</p>
+      </article>
+      <article class="post">
+        <header class="post-head">
+          <h3><a href="#posts">静态站点的凭证安全：DPAPI 本地加密实践</a></h3>
+          <span class="meta">2026-08-05 · 安全</span>
+        </header>
+        <p>令牌只在本机 DPAPI 加密存储、部署产物零凭证——安全边界的工程化设计。</p>
+      </article>
+    </section>
+
+    <section id="tags">
+      <h2>🏷️ 标签</h2>
+      <div class="tags">
+        <span class="tag">前端</span>
+        <span class="tag">桌面开发</span>
+        <span class="tag">云原生</span>
+        <span class="tag">自动化</span>
+        <span class="tag">DevOps</span>
+        <span class="tag">安全</span>
+      </div>
+    </section>
+
+    <section id="about">
+      <h2>👋 关于</h2>
+      <p>本博客由 <b>{{site_title}}</b> 维护，内容涵盖前端、桌面应用、云原生与自动化工程实践。所有文章均为原创经验沉淀，欢迎交流指正。</p>
+    </section>
   </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© {{site_title}} · 由 Cloudflare Deploy Engine 一键部署 · <a href="/rss.xml">RSS 订阅</a></p>
+    </div>
+  </footer>
 </body>
 </html>

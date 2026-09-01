@@ -13,6 +13,15 @@
 - AI 多轮对话（当前为单轮生成 + 回填）
 - 插件市场默认源上线（随 Releases 托管 `market.json`）
 
+## [0.1.3] - 2026-09-01
+
+### 修复
+- **站点 URL 按请求名假设导致指向他人站点（实测事故）**：平台在项目名冲突时会给 pages.dev 子域加随机后缀（`my-tech-blog` → `my-tech-blog-64q.pages.dev`），旧实现一律按 `https://<请求名>.pages.dev` 上报结果与探针 URL——结果页指向同名他人站点，探针还误报"✅ 边缘存活"（假阳性）；现改为部署后从 API 取**真实 subdomain** 用于结果 URL 与探针（native/wrangler 两路）
+- **模板内容升级**：`astro-site` 占位骨架替换为完整中文技术博客（文章列表/标签/关于/RSS，`{{site_title}}` 真实生效）
+
+### 测试
+- 真实账号部署验证：中文博客经 exe 界面部署成功、真实子域外部 200、内容标记校验
+
 ## [0.1.2] - 2026-09-01
 
 ### 修复
@@ -72,7 +81,8 @@
 - GitLab 来源：仓库含空格文件名时按引擎规则拒绝直传（防护行为，非缺陷）
 - Token 建议最小权限：仅 `Cloudflare Pages: Edit`（ADR-006）
 
-[Unreleased]: https://github.com/Teow9/cloudflare-deploy-engine/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Teow9/cloudflare-deploy-engine/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.0

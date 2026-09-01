@@ -55,6 +55,20 @@ function Test-CfToken {
     return $true
 }
 
+function Get-PagesProjectSubdomain {
+    # 实际分配的 pages.dev 子域（平台在项目名冲突时会加随机后缀，如 my-tech-blog → my-tech-blog-64q；
+    # 用请求名拼 URL/探针会指向他人同名站点 —— 实测事故，必须取真实 subdomain）
+    param(
+        [Parameter(Mandatory = $true)][string]$Token,
+        [Parameter(Mandatory = $true)][string]$AccountId,
+        [Parameter(Mandatory = $true)][string]$Project
+    )
+    $resp = Invoke-CfApi -Method 'GET' -Url ((Get-CfApiBase) + "/accounts/$AccountId/pages/projects/$Project") -Token $Token
+    $obj = $resp | ConvertFrom-Json
+    if ($obj.success -and $obj.result.subdomain) { return [string]$obj.result.subdomain }
+    throw "获取项目子域失败：$resp"
+}
+
 function Get-OrCreatePagesProject {
     param(
         [Parameter(Mandatory = $true)][string]$Token,
@@ -438,7 +452,10 @@ function Invoke-TargetPages {
 
     # ---- 后端分发 + 重试循环（平台有间歇性资产故障窗口，wrangler 同款韧性） ----
     $Backend = if ($PluginArgs.ContainsKey('Backend')) { $PluginArgs['Backend'] } else { 'native' }
-    $result = @{ action = 'deploy'; project = $project; backend = $Backend; files = $records.Count; url = "https://$project.pages.dev" }
+    # 真实子域（平台可能在项目名冲突时加后缀：my-tech-blog → my-tech-blog-64q.pages.dev）
+    $subdomain = Get-PagesProjectSubdomain -Token $cfg.secrets.apiToken -AccountId $cfg.secrets.accountId -Project $project
+    $result = @{ action = 'deploy'; project = $project; backend = $Backend; files = $records.Count; url = "https://$subdomain" }
+    Write-LogLine -Level INFO -Message "站点子域：$subdomain"
 
     $servingOk = $false
     $attempts = 0
@@ -450,7 +467,7 @@ function Invoke-TargetPages {
             if ($Backend -eq 'wrangler') {
                 $shortId = Invoke-WranglerDeploy -Token $cfg.secrets.apiToken -Project $project -SourceRoot $SourceRoot
                 $result.deploymentShortId = $shortId
-                $probeUrl = "https://$shortId.$project.pages.dev"
+                $probeUrl = "https://$shortId.$subdomain"
                 Write-LogLine -Level INFO -Message "wrangler 部署完成（short_id=$shortId）"
             } else {
                 # 第 2 次起强制重传：坏窗口期"已存在但损坏"的资产需要覆盖
@@ -458,7 +475,7 @@ function Invoke-TargetPages {
                 Write-LogLine -Level INFO -Message "部署 ID：$deployId"
                 Wait-PagesDeployment -Token $cfg.secrets.apiToken -AccountId $cfg.secrets.accountId -Project $project -DeploymentId $deployId | Out-Null
                 $result.deploymentId = $deployId
-                $probeUrl = "https://$($deployId.Substring(0, 8)).$project.pages.dev"
+                $probeUrl = "https://$($deployId.Substring(0, 8)).$subdomain"
             }
         } catch {
             Write-LogLine -Level WARN -Message "第 $attempts 次部署调用失败（$($_.Exception.Message)）"
