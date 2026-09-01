@@ -7,7 +7,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d6)
 ![Size](https://img.shields.io/badge/exe-2.36%20MB-4ade80)
-![Tests](https://img.shields.io/badge/tests-68%20passing-4ade80)
+![Version](https://img.shields.io/badge/release-v0.1.3-ff9800)
+![Tests](https://img.shields.io/badge/tests-70%20passing-4ade80)
 
 ---
 
@@ -42,6 +43,7 @@
 | [docs/模板开发指南.md](./docs/模板开发指南.md) | template.json 规范与完整性要求 |
 | [docs/手工验收矩阵.md](./docs/手工验收矩阵.md) | 外部验收清单 |
 | [docs/adr/](./docs/adr/) | 架构决策记录（ADR-001 ~ 008） |
+| [tools/ui-e2e/](./tools/ui-e2e/) | GUI 端到端自动化测试（CDP 驱动打包 exe 全流程） |
 
 ## 技术架构
 
@@ -66,7 +68,7 @@
 - **部署目标**：Cloudflare Pages（官方两段式资产上传协议）／ Workers（脚本直传，可选子域）
 - **UI**：动态表单、实时日志、探针验收卡片、部署历史与一键重部署（回滚）
 
-## 内置插件（v0.1.0）
+## 内置插件（v0.1.3）
 
 | 轴 | 插件 |
 | :--- | :--- |
@@ -95,9 +97,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Script te
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev\build-release.ps1   # 门禁+打包
 ```
 
-**质量门禁**（CI 六作业 + 发布流水线）：Pester 68 项 / 语法与 ScriptAnalyzer / 无凭据扫描 /
+**质量门禁**（CI 双作业 + 发布流水线）：Pester 70 项 / 语法与 ScriptAnalyzer / 无凭据扫描 /
 模板完整性 / 尺寸（exe ≤ 5MB · templates ≤ 3MB · zip ≤ 10MB）／ zip 内容断言（无运行时数据、
-无嵌套目录、关键文件齐备）。
+无嵌套目录、关键文件齐备）。GUI 端到端自动化回归见 `tools/ui-e2e/`。
 
 ## 安全与合规
 
@@ -111,9 +113,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev\build-release.ps
 
 ## 路线图
 
-- **已完成（v0.1.0）**：引擎 / 桌面 UI / 双目标 / 插件市场 / 五模板 / 部署历史与回滚 / i18n / 发布流水线
-- **外部验收中**：无 Node 干净虚拟机全流程计时、桌面交互目测、CI 首跑（推送后自动执行）
-- **Backlog**：R2/D1 部署目标、AI 多轮对话、插件市场默认源上线
+- **已完成（v0.1.0 – v0.1.3）**：引擎 / 桌面 UI（含启动链全量修复）/ 双目标 / 插件市场 /
+  五模板（astro-site 为中文本技术博客）/ 部署历史与回滚 / i18n / 发布流水线 /
+  站点真实子域上报与探针修正 / GUI 端到端自动化（tools/ui-e2e）· CI 双作业常绿
+- **待外部验收**：无 Node 干净虚拟机全流程计时（`docs/手工验收矩阵.md` A9/E2/E4）
+- **Backlog**：R2/D1 部署目标、AI 多轮对话、插件市场默认源上线、新项目探针激活窗口放宽（可配置）
 
 ## 贡献
 
@@ -122,5 +126,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev\build-release.ps
 
 ## 许可证
 
-[MIT](./LICENSE)（仓库未含 LICENSE 文件时将随首个 Release 补充；Neutralino.js 遵循其上游许可证；
-内置模板遵循其各自来源许可证）。
+[MIT](./LICENSE)（Neutralino.js 遵循其上游许可证；内置模板遵循其各自来源许可证）。

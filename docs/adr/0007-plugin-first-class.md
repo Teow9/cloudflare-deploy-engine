@@ -10,7 +10,8 @@
 - **机制进 MVP**：`plugins.json` 四轴注册表（sources/templates/ai/targets，用户可编辑）+ `plugin-manager.ps1` 统一注册与分发 + handler 契约（`scripts/plugins/<轴>/<id>.ps1` 定义 `Invoke-<前缀><Id>` 函数，接收 `-Args` 哈希表）。
 - **内容精简但齐全**：MVP 内置 sources×3（local/github/zip）、templates×2（plain/astro-site）、ai×1（openai-compatible）、targets×1（pages）。
   > 2026-09 更新：已扩充至 sources×4（+gitlab）、templates×5（+react-vite/docs-site/nav-site）、targets×2（+workers），见 `plugins.json`。
-- **市场后置 M6**：远程下载/共享/版本管理属于增量，与机制无关。
+- **市场（M5 已交付）**：远程清单 `market.json` + SHA256 校验 + 安装/卸载/内置白名单；远程共享、版本管理属于此机制的增量应用。
+  > 2026-09 更新：插件市场已随 v0.1.0 交付（`market.ps1` registry/search/install/uninstall + UI 模态）；默认市场源待随项目 Release 托管上线。
 - 验收线：`Get-PluginList` 可枚举四轴全部内置插件且均可实际调用；plugins.json schema 进 CI 校验。
 
 ## 后果
