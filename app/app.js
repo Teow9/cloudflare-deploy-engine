@@ -113,9 +113,12 @@ function quoteWinArg(a) {
   return /[\s"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-function runEngine(args) {
+function runEngine(args, opts) {
   return new Promise((resolve, reject) => {
     if (running) { reject(new Error('已有任务在运行，请先等待或取消')); return; }
+    // ★ 修复：仅部署类调用渲染结果面板（loadPlugins/loadTemplates/loadHistory/
+    //   config-get 等"装载类"结果对象无 url/project，渲染会把部署结果覆盖成空表格）
+    const renderPanel = !opts || opts.render !== false;
     running = true;
     cancelRequested = false;
     showCancelBtn(true);
@@ -165,7 +168,7 @@ function runEngine(args) {
             const parsed = line.startsWith('RESULT|') ? parseResultLine(line) : null;
             if (parsed) {
               finalResult = parsed;
-              renderResult(parsed);
+              if (renderPanel) renderResult(parsed);
             } else {
               appendLog(line);
             }
@@ -178,7 +181,7 @@ function runEngine(args) {
             const tail = outBuf.replace(/\r$/, '');
             if (tail) {
               const parsed = tail.startsWith('RESULT|') ? parseResultLine(tail) : null;
-              if (parsed) { finalResult = parsed; renderResult(parsed); }
+              if (parsed) { finalResult = parsed; if (renderPanel) renderResult(parsed); }
               else appendLog(tail);
             }
             outBuf = '';
@@ -285,7 +288,7 @@ async function loadConfig() {
   // 点击「同意」→ loadConfig → 遮罩立刻弹回 → 全部按钮被盖住，永远进不去）
   if (await isFirstRun()) return null;
   try {
-    const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'get']);
+    const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'get'], { render: false });
     if (r && r.error && r.error.indexOf('配置文件不存在') >= 0) {
       appendLog('LOG|---|WARN|本地无可用配置：请先填写凭证并「加密保存」');
       return null;
@@ -323,7 +326,7 @@ function showFirstRun() {
 // ---------- 模板 / 来源 装载 ----------
 async function loadTemplates() {
   try {
-    const r = await runEngine(['deploy-core.ps1', '-ListTemplates']);
+    const r = await runEngine(['deploy-core.ps1', '-ListTemplates'], { render: false });
     if (!r || r.error) { appendLog('[warn] 模板清单失败：' + (r ? r.error : '无响应')); return; }
     templates = r.templates || [];
     const sel = $('templateId');
@@ -394,7 +397,7 @@ function collectParams() {
 
 async function loadPlugins() {
   try {
-    const r = await runEngine(['deploy-core.ps1', '-ListPlugins']);
+    const r = await runEngine(['deploy-core.ps1', '-ListPlugins'], { render: false });
     if (!r || r.error) { appendLog('[warn] 插件清单失败：' + (r ? r.error : '无响应')); return; }
     plugins = r.plugins || [];
     populateSourceSelect();
@@ -502,7 +505,7 @@ function wireCredential() {
       ];
       for (const [f, v] of fields) {
         if (!v) continue;
-        await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)]);
+        await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)], { render: false });
       }
       appendLog('LOG|---|INFO|凭证已加密保存（DPAPI）');
     } catch (e) {
@@ -546,7 +549,7 @@ function openExport() {
       if (pw !== pw2) { alert('两次口令不一致'); return; }
       okBtn.disabled = true;
       try {
-        const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'export', '-Passphrase', pw, '-OutFile', f]);
+        const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'export', '-Passphrase', pw, '-OutFile', f], { render: false });
         if (r && r.error) alert('导出失败：' + r.error);
         else { appendLog('LOG|---|INFO|导出完成：' + f); closeModal(); }
       } catch (e) {
@@ -568,7 +571,7 @@ function openImport() {
       if (!f || !pw) { alert('请填写文件路径与口令'); return; }
       okBtn.disabled = true;
       try {
-        const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'import', '-Passphrase', pw, '-InFile', f]);
+        const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'import', '-Passphrase', pw, '-InFile', f], { render: false });
         if (r && r.error) alert('导入失败：' + r.error);
         else {
           appendLog('LOG|---|INFO|导入完成并重新加密');
@@ -636,7 +639,7 @@ function wireDeploy() {
 // ---------- 历史（蓝图 §4.2 + A9 回滚务实版） ----------
 async function loadHistory() {
   try {
-    const r = await runEngine(['deploy-core.ps1', '-ListHistory']);
+    const r = await runEngine(['deploy-core.ps1', '-ListHistory'], { render: false });
     if (!r || r.error) { appendLog('[warn] 历史读取失败：' + (r ? r.error : '无响应')); return; }
     historyCache = r.history || [];
     renderHistory();
@@ -705,7 +708,7 @@ function wireAi() {
     appendLog('LOG|---|INFO|AI 生成方案中…（永不自动部署）');
     let r;
     try {
-      r = await runEngine(['ai-bridge.ps1', '-ConfigPath', getConfigPath(), '-RequestB64', b64u8(req)]);
+      r = await runEngine(['ai-bridge.ps1', '-ConfigPath', getConfigPath(), '-RequestB64', b64u8(req)], { render: false });
     } catch (e) {
       appendLog('LOG|---|WARN|AI 方案失败：' + e.message + '（可手动填写后部署）');
       return;
@@ -746,7 +749,7 @@ function wireAi() {
         const ops = [['aiBaseUrl', baseUrl], ['aiModel', model]];
         if (apiKey) ops.push(['aiApiKey', apiKey]);
         for (const [f, v] of ops) {
-          await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)]);
+          await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)], { render: false });
         }
         appendLog('LOG|---|INFO|AI 设置已保存（apiKey 加密存储）');
         closeModal();
@@ -795,7 +798,7 @@ async function openMarket() {
   $('btnSaveMarketUrl').onclick = async () => {
     const v = $('marketUrl').value.trim();
     try {
-      await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', 'marketUrl', '-ValueB64', b64u8(v)]);
+      await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', 'marketUrl', '-ValueB64', b64u8(v)], { render: false });
       configState = null;
       appendLog('LOG|---|INFO|市场 URL 已保存');
       alert('✓ 已保存');
@@ -813,7 +816,7 @@ async function loadMarket(url) {
   list.textContent = t('marketLoading') + '…';
   const args = ['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'registry'];
   if (url) args.push('-MarketUrl', url);
-  const r = await runEngine(args);
+  const r = await runEngine(args, { render: false });
   if (!r || r.error) { list.textContent = '加载失败：' + (r ? r.error : t('marketEmpty')); return; }
   marketCache = { source: r.source, plugins: r.plugins || [] };
   renderMarket($('marketSearch').value.trim());
@@ -846,7 +849,7 @@ function renderMarket(kw) {
       btn.onclick = async () => {
         btn.disabled = true;
         try {
-          const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'install', '-Axis', p.axis, '-Id', p.id, '-MarketUrl', marketCache.source]);
+          const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'install', '-Axis', p.axis, '-Id', p.id, '-MarketUrl', marketCache.source], { render: false });
           if (r && r.error) { alert('安装失败：' + r.error); btn.disabled = false; }
           else {
             appendLog('LOG|---|INFO|市场安装成功：' + p.axis + '/' + p.id);
@@ -887,7 +890,7 @@ function renderInstalled() {
     btn.onclick = async () => {
       if (!confirm('卸载插件「' + p.id + '」？将删除文件并注销注册。')) return;
       try {
-        const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'uninstall', '-Id', p.id]);
+        const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'uninstall', '-Id', p.id], { render: false });
         if (r && r.error) alert('卸载失败：' + r.error);
         else {
           appendLog('LOG|---|INFO|已卸载：' + p.id);
@@ -908,7 +911,7 @@ function renderInstalled() {
 
 async function reloadPlugins() {
   try {
-    const r = await runEngine(['deploy-core.ps1', '-ListPlugins']);
+    const r = await runEngine(['deploy-core.ps1', '-ListPlugins'], { render: false });
     if (r && !r.error) {
       plugins = r.plugins || [];
       populateSourceSelect();

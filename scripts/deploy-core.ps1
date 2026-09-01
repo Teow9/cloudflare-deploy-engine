@@ -192,7 +192,8 @@ try {
         $historyProject = $result.project
         if (-not $DryRun) {
             $m = $result.meta
-            Add-DeployHistory -Project $result.project -Source $m.source -SourceArgs $m.sourceArgs `
+            # $null = 抑制 Add-DeployHistory 的返回值泄漏到 stdout（记录对象会混入 UI 日志）
+            $null = Add-DeployHistory -Project $result.project -Source $m.source -SourceArgs $m.sourceArgs `
                 -Template $m.template -Parameters $m.parameters -Url $result.url -Status 'ok' `
                 -ServingOk ([bool]$result.servingOk) -Attempts ([int]$result.attempts) `
                 -Backend $result.backend -DeploymentId $result.deploymentId -LogFile $logFile
@@ -200,7 +201,7 @@ try {
         Write-Result $result
     } catch {
         if (-not $DryRun) {
-            Add-DeployHistory -Project $historyProject -Status 'failed' -LogFile $logFile
+            $null = Add-DeployHistory -Project $historyProject -Status 'failed' -LogFile $logFile
         }
         throw
     } finally {

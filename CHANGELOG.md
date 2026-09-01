@@ -13,6 +13,16 @@
 - AI 多轮对话（当前为单轮生成 + 回填）
 - 插件市场默认源上线（随 Releases 托管 `market.json`）
 
+## [0.1.2] - 2026-09-01
+
+### 修复
+- **部署结果面板被后续装载覆盖**：`loadHistory` 等装载类引擎结果的 RESULT 也会渲染进结果面板（无 url/project → `<table></table>` 空表格，覆盖部署/销毁结果）；`runEngine` 增加 `{render:false}` 选项，仅部署/DryRun/销毁渲染面板
+- **Add-DeployHistory 返回值泄漏到 stdout**：历史记录对象混入引擎输出与 UI 日志；deploy-core 调用点改为 `$null =` 捕获
+
+### 测试
+- 新增 `tools/ui-e2e/`：CDP 驱动的打包 exe 全流程自动化（首启/凭证/模板/DryRun/部署/历史/销毁 + 外部激活轮询 + 原始事件重放诊断）
+- 真实账号 GUI 端到端：8 轮全流程执行；API 侧部署全部 success；平台资产库 check-missing 确认资产在库；**平台边缘激活当日故障窗口（probe 000 / 站点 500，旧内容 200）被引擎按设计正确报告**
+
 ## [0.1.1] - 2026-09-01
 
 ### 修复（桌面端全量启动链，用户实测"按钮无响应"的根因）
@@ -62,6 +72,7 @@
 - GitLab 来源：仓库含空格文件名时按引擎规则拒绝直传（防护行为，非缺陷）
 - Token 建议最小权限：仅 `Cloudflare Pages: Edit`（ADR-006）
 
-[Unreleased]: https://github.com/Teow9/cloudflare-deploy-engine/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Teow9/cloudflare-deploy-engine/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.0
