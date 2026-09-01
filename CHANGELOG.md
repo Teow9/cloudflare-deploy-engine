@@ -13,6 +13,22 @@
 - AI 多轮对话（当前为单轮生成 + 回填）
 - 插件市场默认源上线（随 Releases 托管 `market.json`）
 
+## [0.1.1] - 2026-09-01
+
+### 修复（桌面端全量启动链，用户实测"按钮无响应"的根因）
+- **`Neutralino.init()` 误用导致整个界面静默瘫痪（核心根因）**：官方客户端库 `init()` 返回 `undefined`（不返回 Promise），旧写法 `Neutralino.init().then(init)` 在 `.then` 处同步抛 `TypeError`，init 从未执行、错误无人捕获、无任何日志——界面静态渲染正常但全部按钮无响应；改为先 `Neutralino.init()` 再对自身 `init()` 挂 `.catch`（CDP 实测启动异常捕获并修复）
+- **引擎目录解析失效**：该 Neutralino 构建的 `os.getPath('exe'/'resources'/'cwd')` 均报 `Invalid platform path name`，`resolveEngineDir` 返回空串 → 引擎以根相对路径启动失败（exit=-196608）；改用运行时预注入变量 `window.NL_PATH`（= exe 目录）并做双候选兜底
+- **`os.spawnProcess` args 数组被服务端忽略**：实测数组/对象两种形态均无效（PowerShell 以交互模式空跑、引擎从未执行）；改为把整条命令行作为 `command` 单串传递，参数按 Windows 规则引号化（路径含空格亦可）
+- **RESULT 行跨事件分块导致解析失败**：大输出（插件/模板清单）被拆成多个 stdout 事件，JSON 解析落空 → 引擎误报"异常退出（exit=0）"；改为跨事件缓冲 + 按换行重组完整行
+- **首启流程死循环**：点击「我已阅读并同意」后遮罩被 `loadConfig()` 重新弹出，界面永久遮挡；改为遮罩仅由 `init()` 展示一次 + `firstRunDismissed` 竞态防护，未保存凭证时给出日志提示
+- **引擎调用失败静默化**：保存凭证 / AI 设置 / 导出导入 / 市场安装卸载 / 市场 URL 保存 / 销毁 / 历史与清单加载等按钮在引擎异常时无任何反馈（部分卡死 disabled）；全部补上 try/catch 与可见错误提示
+- **引擎 stdout 编码加固**：`utils.ps1` 强制 `[Console]::OutputEncoding = UTF-8`，杜绝 PS5.1 OEM 代码页导致的中文日志乱码与 RESULT JSON 损坏
+- **构建期 BOM 防护**：非 ASCII `.ps1` 必须带 UTF-8 BOM（PS5.1 按 ANSI 读取导致语法崩溃，本次构建实测拦截）
+
+### 测试
+- 打包 exe 真实 UI 冒烟（CDP 驱动，Windows WebView2 实测）：首启遮罩、绑定、DryRun、凭证保存、插件市场、历史刷新、JS 错误零报告
+- Pester 70/70（9 套件）、语法 32 脚本、密扫、模板完整性、尺寸门禁、zip 断言全部通过
+
 ## [0.1.0] - 2026-08-31
 
 ### 新增
@@ -45,5 +61,6 @@
 - GitLab 来源：仓库含空格文件名时按引擎规则拒绝直传（防护行为，非缺陷）
 - Token 建议最小权限：仅 `Cloudflare Pages: Edit`（ADR-006）
 
-[Unreleased]: https://github.com/Teow9/cloudflare-deploy-engine/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Teow9/cloudflare-deploy-engine/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Teow9/cloudflare-deploy-engine/releases/tag/v0.1.0

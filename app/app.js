@@ -10,6 +10,7 @@ let running = false;
 let procId = null;
 let cancelRequested = false;
 let watchdogTimer = null;
+let firstRunDismissed = false;   // 首启遮罩已收起（init 的延迟 showFirstRun 不得再弹回）
 
 let templates = [];          // ListTemplates：{id,name}
 let templateMetas = {};      // id → meta（含 parameters）
@@ -45,18 +46,28 @@ async function hasDir(p) {
   catch (e) { return false; }
 }
 
+// 提取目录并统一为反斜杠：Neutralino 预注入路径均为正斜杠风格
+function dirOf(p) {
+  const s = String(p || '').replace(/\//g, '\\');
+  const i = s.lastIndexOf('\\');
+  return i > 0 ? s.substring(0, i) : '';
+}
+
 async function resolveEngineDir() {
-  // ① exe 同级（打包目录模式） ② resources 路径（neu run 开发模式）
+  // ★ 实测：该 Neutralino 构建的 os.getPath 只支持 data/home，'exe'/'resources'/'cwd' 均报
+  //   "Invalid platform path name"（init 曾在此中断 → 引擎路径为空 → 所有按钮失效）。
+  //   改用运行时预注入变量 window.NL_PATH（= exe 所在目录，打包态实测 'E:/cde-test/app'）。
+  const base = String(window.NL_PATH || '').replace(/\//g, '\\');
   try {
-    const exePath = await Neutralino.os.getPath('exe');
-    const exeDir = exePath.substring(0, exePath.lastIndexOf('\\'));
-    if (await hasDir(pathJoin(exeDir, 'scripts'))) return exeDir;
-    const p = await Neutralino.os.getPath('resources');
-    if (p && await hasDir(pathJoin(p, 'scripts'))) return p;
-    return exeDir;
+    if (base && await hasDir(pathJoin(base, 'scripts'))) return base;
+    // 兜底：资源目录候选（打包态 resources.neu 相邻目录 / 开发态 resources 目录）
+    const p = await Neutralino.os.getPath('data');
+    for (const c of [p, dirOf(p)]) {
+      if (c && await hasDir(pathJoin(c, 'scripts'))) return c;
+    }
+    return base;
   } catch (e) {
-    const exePath = await Neutralino.os.getPath('exe');
-    return exePath.substring(0, exePath.lastIndexOf('\\'));
+    return base;
   }
 }
 
@@ -96,6 +107,12 @@ function showResultText(text, cls) {
 // ---------- 引擎调用（可取消 + 看门狗超时） ----------
 const WATCHDOG_MS = 25 * 60 * 1000;
 
+// argv 单参数 → Windows 命令行单串（CRT/CommandLineToArgvW 规则：含空格/引号则双引号包裹，内部引号双写）
+function quoteWinArg(a) {
+  const s = String(a);
+  return /[\s"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
 function runEngine(args) {
   return new Promise((resolve, reject) => {
     if (running) { reject(new Error('已有任务在运行，请先等待或取消')); return; }
@@ -109,11 +126,17 @@ function runEngine(args) {
       '-NoProfile', '-ExecutionPolicy', 'Bypass',
       '-File', pathJoin(engineDir, 'scripts', script), ...args
     ];
+    // ★ 修复：Neutralino 6.9.0 服务端 os.spawnProcess 忽略 args 数组（实测数组形态
+    //   spawn 出的 powershell 无任何参数、进入交互模式 → 引擎从未真正执行）；
+    //   改为把整条命令行作为 command 单串（os.execCommand 同款语义），
+    //   参数逐个按 Windows 规则引号化（路径含空格亦可）。
+    const cmdline = ['powershell.exe', ...fullArgs.map(quoteWinArg)].join(' ');
 
-    Neutralino.os.spawnProcess('powershell.exe', fullArgs).then((proc) => {
+    Neutralino.os.spawnProcess(cmdline).then((proc) => {
       procId = proc ? (proc.id != null ? proc.id : proc.pid) : null;
       let finalResult = null;
       let settled = false;
+      let outBuf = '';   // stdout 分块重组缓冲（修复：长行被拆分为多个事件）
 
       const settle = (fn) => {
         if (settled) return;
@@ -131,18 +154,35 @@ function runEngine(args) {
         if (evt.detail.id !== procId) return;
         const d = evt.detail;
         if (d.action === 'stdOut') {
-          const text = String(d.data).replace(/\r?\n$/, '');
-          if (!text) return;
-          const parsed = text.startsWith('RESULT|') ? parseResultLine(text) : null;
-          if (parsed) {
-            finalResult = parsed;
-            renderResult(parsed);
-          } else {
-            appendLog(text);
+          // ★ 修复：stdout 事件可能拆分成多个 chunk（实测大 RESULT 行被截断 →
+          //   JSON 解析失败 → 引擎误报"异常退出"）。改为跨事件缓冲 + 按换行重组完整行。
+          outBuf += String(d.data);
+          let nl;
+          while ((nl = outBuf.indexOf('\n')) >= 0) {
+            const line = outBuf.slice(0, nl).replace(/\r$/, '');
+            outBuf = outBuf.slice(nl + 1);
+            if (!line) continue;
+            const parsed = line.startsWith('RESULT|') ? parseResultLine(line) : null;
+            if (parsed) {
+              finalResult = parsed;
+              renderResult(parsed);
+            } else {
+              appendLog(line);
+            }
           }
         } else if (d.action === 'stdErr') {
           appendLog('[stderr] ' + String(d.data).replace(/\r?\n$/, ''));
         } else if (d.action === 'exit') {
+          // 退出前冲刷残留缓冲（无换行结尾的收尾内容）
+          if (outBuf) {
+            const tail = outBuf.replace(/\r$/, '');
+            if (tail) {
+              const parsed = tail.startsWith('RESULT|') ? parseResultLine(tail) : null;
+              if (parsed) { finalResult = parsed; renderResult(parsed); }
+              else appendLog(tail);
+            }
+            outBuf = '';
+          }
           if (cancelRequested) {
             setStatus(t('cancelled'), 'fail');
             settle(() => reject(new Error('任务已取消')));
@@ -241,14 +281,13 @@ async function isFirstRun() {
 }
 
 async function loadConfig() {
-  if (await isFirstRun()) {
-    showFirstRun();
-    return null;
-  }
+  // 首启遮罩由 init 统一展示一次（修复：此前这里无条件弹遮罩，
+  // 点击「同意」→ loadConfig → 遮罩立刻弹回 → 全部按钮被盖住，永远进不去）
+  if (await isFirstRun()) return null;
   try {
     const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'get']);
     if (r && r.error && r.error.indexOf('配置文件不存在') >= 0) {
-      showFirstRun();
+      appendLog('LOG|---|WARN|本地无可用配置：请先填写凭证并「加密保存」');
       return null;
     }
     configState = r;
@@ -283,19 +322,21 @@ function showFirstRun() {
 
 // ---------- 模板 / 来源 装载 ----------
 async function loadTemplates() {
-  const r = await runEngine(['deploy-core.ps1', '-ListTemplates']);
-  if (!r || r.error) { appendLog('[warn] 模板清单失败：' + (r ? r.error : '无响应')); return; }
-  templates = r.templates || [];
-  const sel = $('templateId');
-  sel.innerHTML = '';
-  for (const t of templates) {
-    const opt = document.createElement('option');
-    opt.value = t.id;
-    opt.textContent = t.name + '（' + t.id + '）';
-    sel.appendChild(opt);
-  }
-  if (sel.options.length && !sel.value) sel.value = sel.options[0].value;
-  await renderTemplateParams();
+  try {
+    const r = await runEngine(['deploy-core.ps1', '-ListTemplates']);
+    if (!r || r.error) { appendLog('[warn] 模板清单失败：' + (r ? r.error : '无响应')); return; }
+    templates = r.templates || [];
+    const sel = $('templateId');
+    sel.innerHTML = '';
+    for (const t of templates) {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.name + '（' + t.id + '）';
+      sel.appendChild(opt);
+    }
+    if (sel.options.length && !sel.value) sel.value = sel.options[0].value;
+    await renderTemplateParams();
+  } catch (e) { appendLog('[warn] 模板清单失败：' + e.message); }
 }
 
 async function getTemplateMeta(id) {
@@ -352,11 +393,13 @@ function collectParams() {
 }
 
 async function loadPlugins() {
-  const r = await runEngine(['deploy-core.ps1', '-ListPlugins']);
-  if (!r || r.error) { appendLog('[warn] 插件清单失败：' + (r ? r.error : '无响应')); return; }
-  plugins = r.plugins || [];
-  populateSourceSelect();
-  renderSourceFields();
+  try {
+    const r = await runEngine(['deploy-core.ps1', '-ListPlugins']);
+    if (!r || r.error) { appendLog('[warn] 插件清单失败：' + (r ? r.error : '无响应')); return; }
+    plugins = r.plugins || [];
+    populateSourceSelect();
+    renderSourceFields();
+  } catch (e) { appendLog('[warn] 插件清单失败：' + e.message); }
 }
 
 function populateSourceSelect() {
@@ -451,21 +494,26 @@ function collectSourceArgs() {
 // ---------- 凭证 ----------
 function wireCredential() {
   $('btnSaveCred').onclick = async () => {
-    const fields = [
-      ['accountId', $('accountId').value.trim()],
-      ['email', $('email').value.trim()],
-      ['apiToken', $('apiToken').value.trim()]
-    ];
-    for (const [f, v] of fields) {
-      if (!v) continue;
-      await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)]);
+    try {
+      const fields = [
+        ['accountId', $('accountId').value.trim()],
+        ['email', $('email').value.trim()],
+        ['apiToken', $('apiToken').value.trim()]
+      ];
+      for (const [f, v] of fields) {
+        if (!v) continue;
+        await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', f, '-ValueB64', b64u8(v)]);
+      }
+      appendLog('LOG|---|INFO|凭证已加密保存（DPAPI）');
+    } catch (e) {
+      showResultText('❌ 保存失败：' + e.message, 'err');
     }
-    appendLog('LOG|---|INFO|凭证已加密保存（DPAPI）');
   };
 
   $('btnLoadCred').onclick = async () => {
-    await loadConfig();
-    appendLog('LOG|---|INFO|已从本地配置解密回填');
+    const r = await loadConfig();
+    if (r) { appendLog('LOG|---|INFO|已从本地配置解密回填'); renderResult(null); }
+    else appendLog('LOG|---|WARN|本地无可用配置：请先填写凭证并「加密保存」');
   };
 
   $('btnClearCred').onclick = async () => {
@@ -497,10 +545,15 @@ function openExport() {
       if (pw.length < 8) { alert('口令至少 8 个字符'); return; }
       if (pw !== pw2) { alert('两次口令不一致'); return; }
       okBtn.disabled = true;
-      const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'export', '-Passphrase', pw, '-OutFile', f]);
-      if (r && r.error) alert('导出失败：' + r.error);
-      else { appendLog('LOG|---|INFO|导出完成：' + f); closeModal(); }
-      okBtn.disabled = false;
+      try {
+        const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'export', '-Passphrase', pw, '-OutFile', f]);
+        if (r && r.error) alert('导出失败：' + r.error);
+        else { appendLog('LOG|---|INFO|导出完成：' + f); closeModal(); }
+      } catch (e) {
+        alert('导出失败：' + e.message);
+      } finally {
+        okBtn.disabled = false;
+      }
     });
 }
 
@@ -514,14 +567,19 @@ function openImport() {
       const pw = $('impPw').value;
       if (!f || !pw) { alert('请填写文件路径与口令'); return; }
       okBtn.disabled = true;
-      const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'import', '-Passphrase', pw, '-InFile', f]);
-      if (r && r.error) alert('导入失败：' + r.error);
-      else {
-        appendLog('LOG|---|INFO|导入完成并重新加密');
-        closeModal();
-        await loadConfig();
+      try {
+        const r = await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'import', '-Passphrase', pw, '-InFile', f]);
+        if (r && r.error) alert('导入失败：' + r.error);
+        else {
+          appendLog('LOG|---|INFO|导入完成并重新加密');
+          closeModal();
+          await loadConfig();
+        }
+      } catch (e) {
+        alert('导入失败：' + e.message);
+      } finally {
+        okBtn.disabled = false;
       }
-      okBtn.disabled = false;
     });
 }
 
@@ -566,17 +624,23 @@ function wireDeploy() {
     const proj = $('projectName').value.trim() || (configState && configState.settings ? configState.settings.pagesProject : '');
     if (!proj) { alert('未找到项目名：请先填写项目名或先部署一次'); return; }
     if (!confirm('确认删除 Pages 项目「' + proj + '」？此操作不可撤销，站点将下线。')) return;
-    await runEngine(['destroy.ps1', '-ConfigPath', getConfigPath(), '-Project', proj, '-Force']);
-    await loadHistory();
+    try {
+      await runEngine(['destroy.ps1', '-ConfigPath', getConfigPath(), '-Project', proj, '-Force']);
+      await loadHistory();
+    } catch (e) {
+      showResultText('❌ ' + e.message, 'err');
+    }
   };
 }
 
 // ---------- 历史（蓝图 §4.2 + A9 回滚务实版） ----------
 async function loadHistory() {
-  const r = await runEngine(['deploy-core.ps1', '-ListHistory']);
-  if (!r || r.error) { appendLog('[warn] 历史读取失败：' + (r ? r.error : '无响应')); return; }
-  historyCache = r.history || [];
-  renderHistory();
+  try {
+    const r = await runEngine(['deploy-core.ps1', '-ListHistory']);
+    if (!r || r.error) { appendLog('[warn] 历史读取失败：' + (r ? r.error : '无响应')); return; }
+    historyCache = r.history || [];
+    renderHistory();
+  } catch (e) { appendLog('[warn] 历史读取失败：' + e.message); }
 }
 
 function renderHistory() {
@@ -639,7 +703,13 @@ function wireAi() {
     const req = $('aiRequest').value.trim();
     if (!req) { alert('请先输入需求描述'); return; }
     appendLog('LOG|---|INFO|AI 生成方案中…（永不自动部署）');
-    const r = await runEngine(['ai-bridge.ps1', '-ConfigPath', getConfigPath(), '-RequestB64', b64u8(req)]);
+    let r;
+    try {
+      r = await runEngine(['ai-bridge.ps1', '-ConfigPath', getConfigPath(), '-RequestB64', b64u8(req)]);
+    } catch (e) {
+      appendLog('LOG|---|WARN|AI 方案失败：' + e.message + '（可手动填写后部署）');
+      return;
+    }
     if (!r || r.error) {
       appendLog('LOG|---|WARN|AI 方案失败：' + (r ? r.error : '无响应') + '（可手动填写后部署）');
       return;
@@ -666,12 +736,13 @@ function wireAi() {
       '<label>API Key<input id="aiApiKey" type="password" placeholder="sk-..." value=""></label>' +
       '<p class="hint">支持任何 OpenAI 兼容端点（OpenAI / DeepSeek / Ollama / vLLM 等）。Key 已保存时置空表示保持不变。</p>',
       async (okBtn) => {
-        const baseUrl = $('aiBaseUrl').value.trim();
-        const model = $('aiModel').value.trim();
-        const apiKey = $('aiApiKey').value.trim();
-        if (!baseUrl || !model) { alert('BaseUrl 与模型必填'); return; }
-        aiState = { baseUrl: baseUrl, model: model, apiKey: apiKey };
-        okBtn.disabled = true;
+      const baseUrl = $('aiBaseUrl').value.trim();
+      const model = $('aiModel').value.trim();
+      const apiKey = $('aiApiKey').value.trim();
+      if (!baseUrl || !model) { alert('BaseUrl 与模型必填'); return; }
+      aiState = { baseUrl: baseUrl, model: model, apiKey: apiKey };
+      okBtn.disabled = true;
+      try {
         const ops = [['aiBaseUrl', baseUrl], ['aiModel', model]];
         if (apiKey) ops.push(['aiApiKey', apiKey]);
         for (const [f, v] of ops) {
@@ -679,8 +750,12 @@ function wireAi() {
         }
         appendLog('LOG|---|INFO|AI 设置已保存（apiKey 加密存储）');
         closeModal();
+      } catch (e) {
+        alert('AI 设置保存失败：' + e.message);
+      } finally {
         okBtn.disabled = false;
-      });
+      }
+    });
   };
 }
 
@@ -719,10 +794,14 @@ async function openMarket() {
   $('btnLoadMarket').onclick = () => loadMarket($('marketUrl').value.trim());
   $('btnSaveMarketUrl').onclick = async () => {
     const v = $('marketUrl').value.trim();
-    await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', 'marketUrl', '-ValueB64', b64u8(v)]);
-    configState = null;
-    appendLog('LOG|---|INFO|市场 URL 已保存');
-    alert('✓ 已保存');
+    try {
+      await runEngine(['config-manager.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'set', '-Field', 'marketUrl', '-ValueB64', b64u8(v)]);
+      configState = null;
+      appendLog('LOG|---|INFO|市场 URL 已保存');
+      alert('✓ 已保存');
+    } catch (e) {
+      alert('保存失败：' + e.message);
+    }
   };
   $('marketSearch').oninput = () => renderMarket($('marketSearch').value.trim());
   renderInstalled();
@@ -766,13 +845,18 @@ function renderMarket(kw) {
     if (!isInst) {
       btn.onclick = async () => {
         btn.disabled = true;
-        const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'install', '-Axis', p.axis, '-Id', p.id, '-MarketUrl', marketCache.source]);
-        if (r && r.error) { alert('安装失败：' + r.error); btn.disabled = false; }
-        else {
-          appendLog('LOG|---|INFO|市场安装成功：' + p.axis + '/' + p.id);
-          await reloadPlugins();
-          renderMarket($('marketSearch').value.trim());
-          renderInstalled();
+        try {
+          const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'install', '-Axis', p.axis, '-Id', p.id, '-MarketUrl', marketCache.source]);
+          if (r && r.error) { alert('安装失败：' + r.error); btn.disabled = false; }
+          else {
+            appendLog('LOG|---|INFO|市场安装成功：' + p.axis + '/' + p.id);
+            await reloadPlugins();
+            renderMarket($('marketSearch').value.trim());
+            renderInstalled();
+          }
+        } catch (e) {
+          alert('安装失败：' + e.message);
+          btn.disabled = false;
         }
       };
     }
@@ -802,13 +886,17 @@ function renderInstalled() {
     btn.textContent = t('marketUninstall');
     btn.onclick = async () => {
       if (!confirm('卸载插件「' + p.id + '」？将删除文件并注销注册。')) return;
-      const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'uninstall', '-Id', p.id]);
-      if (r && r.error) alert('卸载失败：' + r.error);
-      else {
-        appendLog('LOG|---|INFO|已卸载：' + p.id);
-        await reloadPlugins();
-        renderMarket($('marketSearch').value.trim());
-        renderInstalled();
+      try {
+        const r = await runEngine(['market.ps1', '-ConfigPath', getConfigPath(), '-Verb', 'uninstall', '-Id', p.id]);
+        if (r && r.error) alert('卸载失败：' + r.error);
+        else {
+          appendLog('LOG|---|INFO|已卸载：' + p.id);
+          await reloadPlugins();
+          renderMarket($('marketSearch').value.trim());
+          renderInstalled();
+        }
+      } catch (e) {
+        alert('卸载失败：' + e.message);
       }
     };
     act.appendChild(btn);
@@ -819,11 +907,13 @@ function renderInstalled() {
 }
 
 async function reloadPlugins() {
-  const r = await runEngine(['deploy-core.ps1', '-ListPlugins']);
-  if (r && !r.error) {
-    plugins = r.plugins || [];
-    populateSourceSelect();
-  }
+  try {
+    const r = await runEngine(['deploy-core.ps1', '-ListPlugins']);
+    if (r && !r.error) {
+      plugins = r.plugins || [];
+      populateSourceSelect();
+    }
+  } catch (e) { appendLog('[warn] 插件清单刷新失败：' + e.message); }
 }
 
 // ---------- 通用模态 ----------
@@ -862,9 +952,12 @@ function wireSeg() {
 // ---------- 首启 ----------
 function wireFirstRun() {
   $('btnFirstRunOk').onclick = () => {
+    firstRunDismissed = true;
     $('firstRun').classList.add('hidden');
+    // 修复：点击同意后不再触发 loadConfig 重新弹遮罩（死循环根因）
     loadConfig().then((r) => {
       if (r) renderResult(null);
+      else appendLog('LOG|---|WARN|尚未保存凭证：请在左侧填写 Account ID / Email / API Token 后点击「💾 加密保存」（本机 DPAPI 加密，不落明文）');
     });
   };
   $('firstRunTokenGuide').onclick = (e) => {
@@ -876,7 +969,8 @@ function wireFirstRun() {
 // ---------- 初始化 ----------
 async function init() {
   await Neutralino.init();
-  engineDir = await resolveEngineDir();
+  try { engineDir = await resolveEngineDir(); }
+  catch (e) { appendLog('[warn] 引擎目录解析失败：' + e.message); }
   setStatus(t('statusIdle') + ' · 引擎：' + engineDir);
 
   wire();
@@ -903,7 +997,9 @@ async function init() {
 
   await loadPlugins();
   await loadTemplates();
+  const isFirst = await isFirstRun();
   await loadConfig();
+  if (isFirst && !firstRunDismissed) showFirstRun();   // 仅首启展示一次，已收起则不弹回
   await loadHistory();
 }
 
@@ -911,6 +1007,10 @@ function wire() {
   /* 占位：各功能区在对应 wire* 中完成 */
 }
 
-Neutralino.init().then(init).catch((e) => {
+// ★ 修复：别名 Neutralino.init() 返回 undefined（不返回 Promise！），
+//   旧写法 init().then(...) 同步抛 TypeError → init 永不执行 → 全部按钮静默失效（用户实测）。
+//   正确用法：先 Neutralino.init()（客户端会把早调用排入队列），再自行 .catch 我们的 init()。
+Neutralino.init();
+init().catch((e) => {
   document.getElementById('log').textContent = '初始化失败：' + e + '\n请确认已执行 scripts/dev/bootstrap.ps1（neu update）。';
 });

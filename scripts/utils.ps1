@@ -3,6 +3,10 @@
 # 依赖：Windows PowerShell 5.1（powershell.exe），.NET Framework
 # ============================================================
 
+# 引擎 stdout 强制 UTF-8：被 Neutralino 前端 spawnProcess 管道读取时按 UTF-8 解码，
+# PS5.1 默认 OEM 代码页（如 GBK）会导致中文 LOG/RESULT 乱码甚至破坏 JSON 转义。
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 # 加载 DPAPI 所在程序集（幂等）
 Add-Type -AssemblyName System.Security -ErrorAction Stop
 
