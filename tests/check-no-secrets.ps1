@@ -42,7 +42,7 @@ foreach ($file in $files) {
         $matches = [regex]::Matches($content, $pattern)
         foreach ($m in $matches) {
             if ($allowedFakeUuids -contains $m.Value) { continue }
-            if ($m.Value -match '@(example\.com|example\.org|example\.net)$') { continue }  # 占位示例邮箱
+            if ($m.Value -match '@(example\.com|example\.org|example\.net|cde\.local)$') { continue }  # 占位示例邮箱（含项目身份邮箱）
             $found += ("{0}: /{1}/ 命中「{2}」" -f $file.FullName, $pattern, $m.Value)
         }
     }
